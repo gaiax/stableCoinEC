@@ -1,8 +1,12 @@
 import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { polygonAmoy } from 'viem/chains';
+import { polygonAmoy, hardhat } from 'viem/chains';
 
-const alchemyUrl = `https://polygon-amoy.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`;
+const isLocal = process.env.NEXT_PUBLIC_CHAIN === 'localhost';
+const rpcUrl = isLocal
+  ? 'http://127.0.0.1:8545'
+  : `https://polygon-amoy.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`;
+const chain = isLocal ? hardhat : polygonAmoy;
 
 export function getAdminAccount() {
   const privateKey = process.env.ADMIN_PRIVATE_KEY;
@@ -16,14 +20,14 @@ export function getAdminWalletClient() {
   const account = getAdminAccount();
   return createWalletClient({
     account,
-    chain: polygonAmoy,
-    transport: http(alchemyUrl),
+    chain,
+    transport: http(rpcUrl),
   });
 }
 
 export function getPublicClient() {
   return createPublicClient({
-    chain: polygonAmoy,
-    transport: http(alchemyUrl),
+    chain,
+    transport: http(rpcUrl),
   });
 }
