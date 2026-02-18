@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminWalletClient, getPublicClient } from '@/lib/viem-admin';
 import { prisma } from '@/lib/prisma';
-import { parseEther } from 'viem';
+import { parseEther, decodeEventLog } from 'viem';
 
 const REGISTER_ABI = [
   {
@@ -14,6 +14,14 @@ const REGISTER_ABI = [
       { name: '_basisPoints', type: 'uint256[]' },
     ],
     outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'ProductRegistered',
+    type: 'event',
+    inputs: [
+      { name: 'productId', type: 'uint256', indexed: true },
+      { name: 'price', type: 'uint256', indexed: false },
+    ],
   },
 ] as const;
 
@@ -69,6 +77,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Transaction failed' }, { status: 500 });
     }
 
+    // ProductRegisteredイベントからonChainProductIdを取得
+    let onChainProductId: bigint | null = null;
+    for (const log of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: REGISTER_ABI,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (decoded.eventName === 'ProductRegistered') {
+          onChainProductId = decoded.args.productId;
+          break;
+        }
+      } catch {
+        // 他のコントラクトのログはスキップ
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         shopId,
@@ -76,6 +102,7 @@ export async function POST(request: NextRequest) {
         description,
         imageUrl,
         priceJPYC: priceJPYC,
+        onChainProductId,
         txHash,
         isPublished: true,
         splits: {
@@ -90,7 +117,14 @@ export async function POST(request: NextRequest) {
       include: { splits: true },
     });
 
-    return NextResponse.json({ success: true, product, txHash });
+    // BigInt / Decimal はJSONシリアライズ不可のため文字列変換
+    const serialized = {
+      ...product,
+      onChainProductId: product.onChainProductId?.toString() ?? null,
+      priceJPYC: product.priceJPYC.toString(),
+    };
+
+    return NextResponse.json({ success: true, product: serialized, txHash });
   } catch (error) {
     console.error('Product registration error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

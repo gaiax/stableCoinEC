@@ -30,7 +30,7 @@ export default async function DashboardPage() {
           {defaultShop ? (
             <ProductRegisterForm
               shopId={defaultShop.id}
-              apiKey="YOUR_API_KEY"
+              apiKey={process.env.API_SECRET_KEY ?? ''}
             />
           ) : (
             <p className="text-muted-foreground">

@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, order });
+    const serialized = { ...order, amountPaid: order.amountPaid.toString() };
+    return NextResponse.json({ success: true, order: serialized });
   } catch (error) {
     console.error('Order creation error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -37,5 +38,16 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json({ orders });
+  // Decimal / BigInt のシリアライズ
+  const serialized = orders.map((o) => ({
+    ...o,
+    amountPaid: o.amountPaid.toString(),
+    product: {
+      ...o.product,
+      onChainProductId: o.product.onChainProductId?.toString() ?? null,
+      priceJPYC: o.product.priceJPYC.toString(),
+    },
+  }));
+
+  return NextResponse.json({ orders: serialized });
 }
