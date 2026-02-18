@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+contracts/node_modules/
+
+# Build outputs
+.next/
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Prisma generated
+prisma/migrations/
+
+# Misc
+.DS_Store
+*.log
