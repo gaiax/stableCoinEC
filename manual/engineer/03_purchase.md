@@ -15,6 +15,53 @@
 4. Buy実行（購入）
 5. トランザクション確認
 
+## 認証との連携
+
+購入フローでは、ログイン中のユーザーの `buyerId` と選択された `shippingAddressId` が注文に紐づきます。
+
+- **ログイン済み**: `buyerId` がセットされ、配送先の選択が必須（CheckoutButton内で `/api/addresses` から取得・選択・新規作成が可能）
+- **未ログイン**: ウォレットアドレスのみで購入可能（`buyerId` = null、配送先 = null）
+
+## 注文作成API
+
+### エンドポイント
+
+```
+POST /api/orders
+```
+
+### リクエストボディ
+
+```json
+{
+  "productId": "商品ID",
+  "buyerAddress": "0x...",
+  "buyerId": "ユーザーID（ログイン時）",
+  "shippingAddressId": "配送先ID（ログイン時）",
+  "txHash": "0x...",
+  "amountPaid": "1000",
+  "quantity": 1
+}
+```
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| productId | string | はい | 商品ID |
+| buyerAddress | string | はい | 購入者のウォレットアドレス |
+| buyerId | string | いいえ | ログインユーザーのID |
+| shippingAddressId | string | いいえ | 配送先住所のID |
+| txHash | string | はい | オンチェーン購入トランザクションハッシュ |
+| amountPaid | string | はい | 支払金額（JPYC） |
+| quantity | number | いいえ | 数量（デフォルト: 1） |
+
+### 在庫チェック
+
+注文作成時に在庫数をチェックし、不足時は400エラーを返します。注文作成と在庫減算は Prisma `$transaction` でアトミックに実行されます。
+
+```
+400 { "error": "在庫が不足しています（残り: 0個）" }
+```
+
 ## 詳細手順
 
 ### 1. MetaMask接続

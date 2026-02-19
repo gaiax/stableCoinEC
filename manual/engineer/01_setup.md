@@ -106,13 +106,40 @@ Prisma Clientの生成:
 npx prisma generate
 ```
 
-### 6. 開発サーバーの起動
+### 6. 画像アップロード用ディレクトリの作成
+
+商品画像のアップロード先ディレクトリを作成します。
+
+```bash
+mkdir -p public/uploads/products
+```
+
+### 7. シードデータの投入
+
+開発用のテストデータを投入します。
+
+```bash
+npx prisma db seed
+```
+
+以下のテストユーザーが作成されます:
+
+| ユーザー | メール | パスワード | ロール |
+|---------|--------|-----------|--------|
+| 出品者 | seller@example.com | password123 | SELLER |
+| 購入者 | buyer@example.com | password123 | BUYER |
+
+出品者にはデモショップ（slug: `demo-shop`）が紐づき、特商法情報・送料設定がプリセットされます。
+
+### 8. 開発サーバーの起動
 
 ```bash
 npm run dev
 ```
 
 ブラウザで http://localhost:3000 にアクセスして動作確認を行ってください。
+
+ログインテスト: http://localhost:3000/login から `seller@example.com` / `password123` でログインし、ダッシュボード (`/dashboard`) にアクセスできることを確認します。
 
 ## MetaMask の設定
 
@@ -148,3 +175,9 @@ npm run dev
 
 - `node_modules` を削除して再インストール: `rm -rf node_modules && npm install`
 - Prisma Clientが生成されているか確認: `npx prisma generate`
+
+### 認証関連のwarning
+
+以下のwarningは無視して問題ありません:
+- `@react-native-async-storage/async-storage` - MetaMask SDKのオプション依存
+- `pino-pretty` - WalletConnect のオプション依存
