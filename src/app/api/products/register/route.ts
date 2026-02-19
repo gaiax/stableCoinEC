@@ -33,10 +33,32 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { shopId, title, description, imageUrl, priceJPYC, splits } = body;
+    const { shopId, title, description, imageUrl, additionalImageUrls, priceJPYC, splits, stock } = body;
 
     if (!shopId || !title || !priceJPYC || !splits?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // 特商法の必須項目チェック
+    const shop = await prisma.shop.findUnique({
+      where: { id: shopId },
+      select: {
+        legalBusinessName: true,
+        legalAddress: true,
+        legalPhone: true,
+        legalEmail: true,
+      },
+    });
+
+    if (!shop) {
+      return NextResponse.json({ error: 'ショップが見つかりません' }, { status: 404 });
+    }
+
+    if (!shop.legalBusinessName || !shop.legalAddress || !shop.legalPhone || !shop.legalEmail) {
+      return NextResponse.json(
+        { error: '商品を登録するには、特定商取引法に基づく表記（事業者名・住所・電話番号・メールアドレス）の設定が必要です' },
+        { status: 400 }
+      );
     }
 
     const totalPercentage = splits.reduce(
@@ -102,6 +124,7 @@ export async function POST(request: NextRequest) {
         description,
         imageUrl,
         priceJPYC: priceJPYC,
+        stock: stock != null ? Number(stock) : 0,
         onChainProductId,
         txHash,
         isPublished: true,
@@ -113,8 +136,14 @@ export async function POST(request: NextRequest) {
             })
           ),
         },
+        images: {
+          create: (additionalImageUrls ?? []).map((url: string, index: number) => ({
+            imageUrl: url,
+            sortOrder: index,
+          })),
+        },
       },
-      include: { splits: true },
+      include: { splits: true, images: true },
     });
 
     // BigInt / Decimal はJSONシリアライズ不可のため文字列変換

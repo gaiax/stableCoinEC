@@ -11,23 +11,65 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+enum ShippingStatus {
+  UNSHIPPED
+  SHIPPED
+  DELIVERED
+}
+
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  walletAddress String?
-  name          String?
-  shops         Shop[]
-  createdAt     DateTime @default(now())
+  id                String            @id @default(cuid())
+  email             String            @unique
+  passwordHash      String
+  walletAddress     String?
+  name              String?
+  role              UserRole          @default(BUYER)
+  phone             String?
+  shops             Shop[]
+  shippingAddresses ShippingAddress[]
+  buyerOrders       Order[]           @relation("BuyerOrders")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 }
 
 model Shop {
-  id       String    @id @default(cuid())
-  ownerId  String
-  owner    User      @relation(fields: [ownerId], references: [id])
-  name     String
-  slug     String    @unique
-  products Product[]
+  id          String    @id @default(cuid())
+  ownerId     String
+  owner       User      @relation(fields: [ownerId], references: [id])
+  name        String
+  slug        String    @unique
+  description String?
+  logoUrl     String?
+
+  // 特定商取引法に基づく表記
+  legalBusinessName  String?
+  legalAddress       String?
+  legalPhone         String?
+  legalEmail         String?
+  legalBusinessHours String?
+  legalShippingInfo  String?
+  legalReturnPolicy  String?
+  legalPaymentMethod String?
+
+  // 送料設定
+  shippingFee           Decimal? // 全国一律送料(null=送料無料)
+  freeShippingThreshold Decimal? // この金額以上で送料無料
+
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Product {
@@ -39,11 +81,25 @@ model Product {
   imageUrl         String?
   onChainProductId BigInt?        @unique
   priceJPYC        Decimal
+  stock            Int            @default(0)
   splits           SplitSetting[]
+  images           ProductImage[]
   orders           Order[]
   isPublished      Boolean        @default(false)
   txHash           String?
   createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
 }
 
 model SplitSetting {
@@ -54,19 +110,39 @@ model SplitSetting {
   percentage       Int
 }
 
-model Order {
-  id           String      @id @default(cuid())
-  productId    String
-  product      Product     @relation(fields: [productId], references: [id])
-  buyerAddress String
-  txHash       String      @unique
-  amountPaid   Decimal
-  status       OrderStatus @default(PENDING)
-  createdAt    DateTime    @default(now())
+model ShippingAddress {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  name       String
+  postalCode String
+  prefecture String
+  city       String
+  address1   String
+  address2   String?
+  phone      String
+  isDefault  Boolean  @default(false)
+  orders     Order[]
+  createdAt  DateTime @default(now())
 }
 
-enum OrderStatus {
-  PENDING
-  CONFIRMED
-  FAILED
+model Order {
+  id                String          @id @default(cuid())
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id])
+  buyerAddress      String
+  buyerId           String?
+  buyer             User?           @relation("BuyerOrders", fields: [buyerId], references: [id])
+  txHash            String          @unique
+  amountPaid        Decimal
+  shippingAddressId String?
+  shippingAddress   ShippingAddress? @relation(fields: [shippingAddressId], references: [id])
+  shippingFee       Decimal         @default(0)
+  quantity          Int             @default(1)
+  status            OrderStatus     @default(PENDING)
+  shippingStatus    ShippingStatus  @default(UNSHIPPED)
+  trackingNumber    String?
+  shippedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 }
