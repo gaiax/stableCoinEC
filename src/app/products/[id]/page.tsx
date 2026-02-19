@@ -2,18 +2,28 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { CheckoutButton } from '@/components/CheckoutButton';
 import { ConnectButton } from '@/components/ConnectButton';
+import { ImageCarousel } from '@/components/ImageCarousel';
 import { Badge } from '@/components/ui/badge';
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const product = await prisma.product.findUnique({
     where: { id },
-    include: { shop: true, splits: true },
+    include: {
+      shop: true,
+      splits: true,
+      images: { orderBy: { sortOrder: 'asc' } },
+    },
   });
 
   if (!product || !product.isPublished) {
     notFound();
   }
+
+  // メイン画像 + 追加画像を結合
+  const allImages: string[] = [];
+  if (product.imageUrl) allImages.push(product.imageUrl);
+  product.images.forEach((img) => allImages.push(img.imageUrl));
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -21,20 +31,29 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <ConnectButton />
       </div>
 
-      {product.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={product.imageUrl} alt={product.title} className="w-full rounded-lg mb-6" />
+      {allImages.length > 0 && (
+        <ImageCarousel images={allImages} alt={product.title} />
       )}
 
-      <h1 className="text-3xl font-bold mb-2">{product.title}</h1>
+      <div className="flex items-center gap-3 mb-2">
+        <h1 className="text-3xl font-bold">{product.title}</h1>
+        {product.stock <= 0 && (
+          <Badge variant="destructive" className="text-sm">SOLD OUT</Badge>
+        )}
+      </div>
       <p className="text-muted-foreground mb-4">by {product.shop.name}</p>
 
-      <Badge variant="secondary" className="text-xl font-bold mb-6 inline-block">
-        {product.priceJPYC.toString()} JPYC
-      </Badge>
+      <div className="flex items-center gap-4 mb-6">
+        <Badge variant="secondary" className="text-xl font-bold inline-block">
+          {product.priceJPYC.toString()} JPYC
+        </Badge>
+        <span className="text-sm text-muted-foreground">
+          残り {product.stock} 点
+        </span>
+      </div>
 
       {product.description && (
-        <p className="text-gray-700 mb-6">{product.description}</p>
+        <div className="text-gray-700 mb-6 whitespace-pre-wrap">{product.description}</div>
       )}
 
       <div className="border rounded-lg p-4 mb-6">
@@ -54,6 +73,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           productId={product.id}
           onChainProductId={product.onChainProductId}
           priceJPYC={product.priceJPYC.toString()}
+          stock={product.stock}
         />
       ) : (
         <p className="text-muted-foreground text-sm">

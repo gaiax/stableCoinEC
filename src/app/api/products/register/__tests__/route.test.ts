@@ -9,10 +9,14 @@ import { NextRequest } from 'next/server';
 
 // モック: Prisma
 const mockPrismaProductCreate = jest.fn();
+const mockShopFindUnique = jest.fn();
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     product: {
       create: (...args: unknown[]) => mockPrismaProductCreate(...args),
+    },
+    shop: {
+      findUnique: (...args: unknown[]) => mockShopFindUnique(...args),
     },
   },
 }));
@@ -66,10 +70,19 @@ const validBody = {
 };
 
 describe('POST /api/products/register', () => {
+  const validShop = {
+    legalBusinessName: 'テスト株式会社',
+    legalAddress: '東京都渋谷区テスト1-2-3',
+    legalPhone: '03-1234-5678',
+    legalEmail: 'legal@example.com',
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.API_SECRET_KEY = 'test-secret';
     process.env.NEXT_PUBLIC_CONTRACT_ADDRESS = '0x1234567890abcdef1234567890abcdef12345678';
+    // デフォルトで特商法設定済みのショップを返す
+    mockShopFindUnique.mockResolvedValue(validShop);
   });
 
   it('APIキー未設定で401を返す', async () => {
@@ -105,6 +118,40 @@ describe('POST /api/products/register', () => {
     const data = await res.json();
     expect(res.status).toBe(400);
     expect(data.error).toBe('Split percentages must total 10000 basis points');
+  });
+
+  it('ショップが見つからない場合404を返す', async () => {
+    mockShopFindUnique.mockResolvedValue(null);
+    const res = await POST(createRequest(validBody, 'test-secret'));
+    const data = await res.json();
+    expect(res.status).toBe(404);
+    expect(data.error).toBe('ショップが見つかりません');
+  });
+
+  it('特商法の必須項目が未設定で400を返す', async () => {
+    mockShopFindUnique.mockResolvedValue({
+      legalBusinessName: null,
+      legalAddress: null,
+      legalPhone: null,
+      legalEmail: null,
+    });
+    const res = await POST(createRequest(validBody, 'test-secret'));
+    const data = await res.json();
+    expect(res.status).toBe(400);
+    expect(data.error).toContain('特定商取引法');
+  });
+
+  it('特商法の一部項目が未設定で400を返す', async () => {
+    mockShopFindUnique.mockResolvedValue({
+      legalBusinessName: 'テスト会社',
+      legalAddress: null, // 住所未設定
+      legalPhone: '03-1234-5678',
+      legalEmail: 'test@example.com',
+    });
+    const res = await POST(createRequest(validBody, 'test-secret'));
+    const data = await res.json();
+    expect(res.status).toBe(400);
+    expect(data.error).toContain('特定商取引法');
   });
 
   it('コントラクトアドレス未設定で500を返す', async () => {

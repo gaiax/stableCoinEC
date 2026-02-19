@@ -10,12 +10,20 @@ import { NextRequest } from 'next/server';
 // モック: Prisma
 const mockOrderCreate = jest.fn();
 const mockOrderFindMany = jest.fn();
+const mockProductFindUnique = jest.fn();
+const mockProductUpdate = jest.fn();
+const mockTransaction = jest.fn();
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     order: {
       create: (...args: unknown[]) => mockOrderCreate(...args),
       findMany: (...args: unknown[]) => mockOrderFindMany(...args),
     },
+    product: {
+      findUnique: (...args: unknown[]) => mockProductFindUnique(...args),
+      update: (...args: unknown[]) => mockProductUpdate(...args),
+    },
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
 }));
 
@@ -45,15 +53,45 @@ describe('POST /api/orders', () => {
     expect(data.error).toBe('Missing required fields');
   });
 
+  it('商品が見つからない場合404を返す', async () => {
+    mockProductFindUnique.mockResolvedValue(null);
+
+    const req = new NextRequest('http://localhost:3000/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validBody),
+    });
+    const res = await POST(req);
+    const data = await res.json();
+    expect(res.status).toBe(404);
+    expect(data.error).toBe('商品が見つかりません');
+  });
+
+  it('在庫0で400を返す', async () => {
+    mockProductFindUnique.mockResolvedValue({ id: 'product-1', stock: 0 });
+
+    const req = new NextRequest('http://localhost:3000/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validBody),
+    });
+    const res = await POST(req);
+    const data = await res.json();
+    expect(res.status).toBe(400);
+    expect(data.error).toBe('在庫がありません');
+  });
+
   it('正常な注文作成で200を返す', async () => {
     const createdOrder = {
       id: 'order-1',
       ...validBody,
       amountPaid: { toString: () => '1000' },
+      quantity: 1,
       status: 'PENDING',
       createdAt: new Date(),
     };
-    mockOrderCreate.mockResolvedValue(createdOrder);
+    mockProductFindUnique.mockResolvedValue({ id: 'product-1', stock: 10 });
+    mockTransaction.mockResolvedValue([createdOrder, {}]);
 
     const req = new NextRequest('http://localhost:3000/api/orders', {
       method: 'POST',
@@ -66,19 +104,11 @@ describe('POST /api/orders', () => {
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
     expect(data.order.amountPaid).toBe('1000');
-    expect(mockOrderCreate).toHaveBeenCalledWith({
-      data: {
-        productId: 'product-1',
-        buyerAddress: validBody.buyerAddress,
-        txHash: validBody.txHash,
-        amountPaid: '1000',
-        status: 'PENDING',
-      },
-    });
   });
 
   it('Prismaエラーで500を返す', async () => {
-    mockOrderCreate.mockRejectedValue(new Error('DB error'));
+    mockProductFindUnique.mockResolvedValue({ id: 'product-1', stock: 10 });
+    mockTransaction.mockRejectedValue(new Error('DB error'));
 
     const req = new NextRequest('http://localhost:3000/api/orders', {
       method: 'POST',

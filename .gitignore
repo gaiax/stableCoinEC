@@ -16,6 +16,9 @@ contracts/cache/
 # Prisma generated client (regenerated on npm install)
 # prisma/migrations/ is tracked for reproducible deployments
 
+# Uploaded files
+public/uploads/
+
 # Misc
 .DS_Store
 *.log
