@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+contracts/node_modules/
+
+# Build outputs
+.next/
+contracts/artifacts/
+contracts/cache/
+# contracts/typechain-types/ # generated but tracked for type safety
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client (regenerated on npm install)
+# prisma/migrations/ is tracked for reproducible deployments
+
+# Misc
+.DS_Store
+*.log
+.env

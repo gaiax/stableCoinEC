@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(npx hardhat compile:*)",
+      "Bash(npx hardhat:*)",
+      "Bash(python3:*)",
+      "Bash(\"/Users/aram.mine/develop/stableCoinEC/src/app/products/[id]/page.tsx\":*)",
+      "Bash(npm run build:*)",
+      "Bash(cat:*)"
+    ]
+  }
+}

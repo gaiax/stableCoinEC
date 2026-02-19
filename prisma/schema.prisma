@@ -1,0 +1,72 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  walletAddress String?
+  name          String?
+  shops         Shop[]
+  createdAt     DateTime @default(now())
+}
+
+model Shop {
+  id       String    @id @default(cuid())
+  ownerId  String
+  owner    User      @relation(fields: [ownerId], references: [id])
+  name     String
+  slug     String    @unique
+  products Product[]
+}
+
+model Product {
+  id               String         @id @default(cuid())
+  shopId           String
+  shop             Shop           @relation(fields: [shopId], references: [id])
+  title            String
+  description      String?
+  imageUrl         String?
+  onChainProductId BigInt?        @unique
+  priceJPYC        Decimal
+  splits           SplitSetting[]
+  orders           Order[]
+  isPublished      Boolean        @default(false)
+  txHash           String?
+  createdAt        DateTime       @default(now())
+}
+
+model SplitSetting {
+  id               String  @id @default(cuid())
+  productId        String
+  product          Product @relation(fields: [productId], references: [id])
+  recipientAddress String
+  percentage       Int
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  productId    String
+  product      Product     @relation(fields: [productId], references: [id])
+  buyerAddress String
+  txHash       String      @unique
+  amountPaid   Decimal
+  status       OrderStatus @default(PENDING)
+  createdAt    DateTime    @default(now())
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
