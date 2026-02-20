@@ -2,76 +2,114 @@
 
 ## 1. プロジェクト概要
 
-* **目的:** ステーブルコイン(JPYC)決済専用の簡易ECサイト構築。
+* **目的:** ステーブルコイン(JPYC)決済専用のECサイト構築。
 * **コア機能:**
-* **JPYC決済:** 日本円連動ステーブルコイン(JPYC)を使用。
-* **即時レベニューシェア:** 購入と同時に、スマートコントラクトが売上を指定された複数のEOAへ自動分配。
-* **ガスレス商品登録:** 出品者はガス代不要。運営(Admin)がVercel上のバックエンド処理でガス代を代理負担し、コントラクトへ登録。
-* **MetaMask連携:** 購入者は自身のMetaMaskを使用して支払い承認(Approve)と購入(Buy)を行う。
-
-
+  * **JPYC決済:** 日本円連動ステーブルコイン(JPYC)を使用。
+  * **即時レベニューシェア:** 購入と同時に、スマートコントラクトが売上を指定された複数のEOAへ自動分配。
+  * **ガスレス商品登録:** 出品者はガス代不要。運営(Admin)がバックエンド処理でガス代を代理負担し、コントラクトへ登録。
+  * **MetaMask連携:** 購入者はMetaMaskを使用して支払い承認(Approve)と購入(Buy)を行う。
+  * **会員認証:** メール+パスワード認証（NextAuth.js v5）。購入者・出品者のアカウント管理。
+  * **EC基盤:** 在庫管理、注文管理、発送管理、配送先管理、特定商取引法対応。
+  * **画像管理:** 商品画像のアップロード・複数画像カルーセル表示。
 * **インフラ:** Vercel (Frontend & Serverless Functions) + Polygon (Blockchain)。
 
-## 2. 技術スタック (Tech Stack)
+## 2. 技術スタック
 
-* **Infrastructure:** **Vercel** (Hosting & Serverless Functions)
-* **Network:** **Polygon PoS** (Mainnet / Amoy Testnet) ※JPYCの流通量とガス代の安さから選定
-* **Currency:** **JPYC** (ERC20)
-* **Frontend:** Next.js 15 (App Router)
-* **Language:** TypeScript
-* **Styling:** Tailwind CSS, shadcn/ui
-* **Database:** PostgreSQL (Docker / Supabase or Neon)
-* **ORM:** Prisma 5.x
-* **Wallet Connection:** **RainbowKit** + **wagmi v2** + **viem v2**
-* **Smart Contract:** Solidity 0.8.20 (Hardhat 2.x + OpenZeppelin 5.x)
+| カテゴリ | 技術 |
+|---------|------|
+| Infrastructure | Vercel (Hosting & Serverless Functions) |
+| Network | Polygon PoS (Mainnet / Amoy Testnet) |
+| Currency | JPYC (ERC20) |
+| Frontend | Next.js 15 (App Router) + TypeScript |
+| Styling | Tailwind CSS + shadcn/ui |
+| Database | PostgreSQL (Docker / Supabase / Neon) |
+| ORM | Prisma 5.x |
+| Authentication | NextAuth.js v5 (beta) + bcryptjs |
+| Wallet | RainbowKit + wagmi v2 + viem v2 |
+| Smart Contract | Solidity 0.8.20 (Hardhat 2.x + OpenZeppelin 5.x) |
 
 ## 3. システムアーキテクチャ
 
-### 3.1 ハイレベル・フロー
+### 3.1 認証フロー
 
-1. **商品登録フロー (出品者 - Gasless):**
-* 出品者がWebフォームで商品情報と分配設定（例: 自分 `0xAAA...` 80%, 共同者 `0xBBB...` 20%）を入力。
-* Vercel API Routes (`/api/products/register`) がリクエストを受信。
-* `x-api-key` ヘッダーで `API_SECRET_KEY` を照合し認証。
-* サーバーサイドで**運営のAdmin Wallet**がガス代を支払い、スマートコントラクトの `registerProduct` を実行。
-* トランザクションレシートの `ProductRegistered` イベントログを解析し `onChainProductId` を取得。
-* 成功後、DBに商品情報（`onChainProductId` 含む）を保存。
+1. **購入者登録:** メール/パスワード/名前 → User(role=BUYER)作成
+2. **出品者登録:** メール/パスワード/名前/ショップ名/slug → User(role=SELLER) + Shop作成
+3. **ログイン:** メール/パスワード照合 → JWT session発行
+4. **ウォレット連携:** ログイン後にMetaMask接続
 
+### 3.2 商品登録フロー (出品者 - Gasless)
 
-2. **購入フロー (購入者 - MetaMask):**
-* 購入者がサイトにアクセスし、MetaMaskを接続 (RainbowKit/wagmi)。
-* 購入ボタン押下:
-1. **Approve:** JPYCコントラクトに対し、決済コントラクトが代金を引き出せるよう承認トランザクションを送信。
-2. **Buy:** 決済コントラクトの `buy` 関数を実行するトランザクションを送信。
+1. 出品者がダッシュボードから商品登録ページへ遷移
+2. 商品情報・画像・分配設定を入力
+3. 特商法の設定チェック（未設定の場合はエラー）
+4. 画像アップロード → `/api/upload` でサーバーに保存
+5. `/api/products/register` にリクエスト送信（x-api-key認証）
+6. サーバーサイドでAdmin Walletがコントラクトの `registerProduct` を実行
+7. トランザクションレシートの `ProductRegistered` イベントから `onChainProductId` を取得
+8. DBに商品情報（`onChainProductId` 含む）+ 追加画像を保存
 
+### 3.3 購入フロー (購入者 - MetaMask)
 
-* コントラクト内でJPYCがBuyerから各Recipientへ**即時分配**される。
-* 購入完了後、フロントエンドが `/api/orders` にtxHashを送信しDBに記録。
+1. 購入者がログインし、MetaMaskを接続
+2. 商品詳細ページで商品を確認
+3. 「購入する」ボタン押下 → 配送先の選択/新規入力
+4. **Approve:** JPYCコントラクトに使用許可トランザクション送信
+5. **Buy:** 決済コントラクトの `buy` 関数実行
+6. コントラクト内でJPYCが各Recipientへ即時分配
+7. フロントエンドが `/api/orders` に buyerId, shippingAddressId, txHash を送信
+8. 在庫チェック + Prisma $transaction で注文作成・在庫減算
 
+### 3.4 発送フロー
+
+1. 販売者がダッシュボードで注文を確認
+2. 購入者情報・配送先住所を確認
+3. 追跡番号を入力して「発送する」→ ShippingStatus: SHIPPED
+4. 購入者のマイページに発送状況が反映
 
 ## 4. データモデル (Prisma Schema)
 
 ```prisma
-// schema.prisma
-
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")     // Connection pooling recommended for Vercel
-  directUrl = env("DIRECT_URL")       // Direct connection for migrations
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+enum ShippingStatus {
+  UNSHIPPED
+  SHIPPED
+  DELIVERED
+}
+
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  passwordHash  String    // Web2 Login credentials
-  walletAddress String?   // Revenue receiving address (EOA for JPYC)
-  name          String?
-  shops         Shop[]
-  createdAt     DateTime  @default(now())
+  id                String            @id @default(cuid())
+  email             String            @unique
+  passwordHash      String
+  walletAddress     String?
+  name              String?
+  role              UserRole          @default(BUYER)
+  phone             String?
+  shops             Shop[]
+  shippingAddresses ShippingAddress[]
+  buyerOrders       Order[]           @relation("BuyerOrders")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 }
 
 model Shop {
@@ -80,62 +118,107 @@ model Shop {
   owner       User      @relation(fields: [ownerId], references: [id])
   name        String
   slug        String    @unique
-  products    Product[]
+  description String?
+  logoUrl     String?
+
+  // 特定商取引法に基づく表記
+  legalBusinessName  String?
+  legalAddress       String?
+  legalPhone         String?
+  legalEmail         String?
+  legalBusinessHours String?
+  legalShippingInfo  String?
+  legalReturnPolicy  String?
+  legalPaymentMethod String?
+
+  // 送料設定
+  shippingFee           Decimal?
+  freeShippingThreshold Decimal?
+
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Product {
-  id              String   @id @default(cuid())
-  shopId          String
-  shop            Shop     @relation(fields: [shopId], references: [id])
+  id               String         @id @default(cuid())
+  shopId           String
+  shop             Shop           @relation(fields: [shopId], references: [id])
+  title            String
+  description      String?
+  imageUrl         String?
+  onChainProductId BigInt?        @unique
+  priceJPYC        Decimal
+  stock            Int            @default(0)
+  splits           SplitSetting[]
+  images           ProductImage[]
+  orders           Order[]
+  isPublished      Boolean        @default(false)
+  txHash           String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
 
-  // Metadata
-  title           String
-  description     String?
-  imageUrl        String?
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 
-  // On-chain Data
-  onChainProductId BigInt? @unique   // registerProduct() のProductRegisteredイベントから取得
-  priceJPYC       Decimal            // Price in JPYC (Display)
-
-  splits          SplitSetting[]
-  orders          Order[]
-
-  isPublished     Boolean  @default(false)
-  txHash          String?            // Registration Transaction Hash
-  createdAt       DateTime @default(now())
+  @@index([productId])
 }
 
 model SplitSetting {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
+  id               String  @id @default(cuid())
+  productId        String
+  product          Product @relation(fields: [productId], references: [id])
+  recipientAddress String
+  percentage       Int     // Basis Points (10000 = 100%)
+}
 
-  recipientAddress String // EOA Address to receive JPYC
-  percentage       Int    // Basis Points (e.g., 5000 = 50.00%)
+model ShippingAddress {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  name       String
+  postalCode String
+  prefecture String
+  city       String
+  address1   String
+  address2   String?
+  phone      String
+  isDefault  Boolean  @default(false)
+  orders     Order[]
+  createdAt  DateTime @default(now())
 }
 
 model Order {
-  id              String   @id @default(cuid())
-  productId       String
-  product         Product  @relation(fields: [productId], references: [id])
-
-  buyerAddress    String   // MetaMask address used for purchase
-  txHash          String   @unique // On-chain Purchase Tx Hash
-  amountPaid      Decimal  // JPYC amount
-  status          OrderStatus @default(PENDING)
-  createdAt       DateTime @default(now())
-}
-
-enum OrderStatus {
-  PENDING
-  CONFIRMED
-  FAILED
+  id                String          @id @default(cuid())
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id])
+  buyerAddress      String
+  buyerId           String?
+  buyer             User?           @relation("BuyerOrders", fields: [buyerId], references: [id])
+  txHash            String          @unique
+  amountPaid        Decimal
+  shippingAddressId String?
+  shippingAddress   ShippingAddress? @relation(fields: [shippingAddressId], references: [id])
+  shippingFee       Decimal         @default(0)
+  quantity          Int             @default(1)
+  status            OrderStatus     @default(PENDING)
+  shippingStatus    ShippingStatus  @default(UNSHIPPED)
+  trackingNumber    String?
+  shippedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 }
 ```
 
 ## 5. スマートコントラクト設計 (Solidity)
 
-JPYC (ERC20) に特化した決済・分配コントラクトです。
+JPYC (ERC20) に特化した決済・分配コントラクト。変更なし（初期実装のまま）。
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -146,7 +229,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
-
     IERC20 public immutable jpycToken;
 
     struct Split {
@@ -155,7 +237,7 @@ contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
     }
 
     struct Product {
-        uint256 price; // Price in JPYC wei (1 JPYC = 10^18)
+        uint256 price;
         bool isActive;
         Split[] splits;
     }
@@ -171,236 +253,222 @@ contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
         jpycToken = IERC20(_jpycTokenAddress);
     }
 
-    /**
-     * @dev 運営(Admin)が実行。商品と分配ルールをオンチェーンに登録。
-     * ガス代は運営負担。
-     * @return productId 採番されたプロダクトID（0始まりの連番）
-     */
     function registerProduct(
         uint256 _price,
         address[] calldata _recipients,
         uint256[] calldata _basisPoints
-    ) external onlyOwner returns (uint256) {
-        require(_recipients.length == _basisPoints.length, "Length mismatch");
-        require(_recipients.length > 0, "No recipients");
+    ) external onlyOwner returns (uint256) { ... }
 
-        uint256 totalBp = 0;
-        for(uint256 i = 0; i < _basisPoints.length; i++) {
-            totalBp += _basisPoints[i];
-        }
-        require(totalBp == 10000, "Total must be 100%");
+    function buy(uint256 _productId) external nonReentrant { ... }
 
-        uint256 productId = nextProductId++;
-        Product storage p = products[productId];
-        p.price = _price;
-        p.isActive = true;
-
-        for(uint256 i = 0; i < _recipients.length; i++) {
-            p.splits.push(Split({
-                recipient: _recipients[i],
-                basisPoints: _basisPoints[i]
-            }));
-        }
-
-        emit ProductRegistered(productId, _price);
-        return productId;
-    }
-
-    /**
-     * @dev 購入者がMetaMask経由で実行。
-     * 前提: jpycToken.approve(thisAddress, price) が完了していること。
-     */
-    function buy(uint256 _productId) external nonReentrant {
-        Product storage p = products[_productId];
-        require(p.isActive, "Product not active");
-
-        uint256 price = p.price;
-
-        require(jpycToken.transferFrom(msg.sender, address(this), price), "JPYC Transfer failed");
-
-        for(uint256 i = 0; i < p.splits.length; i++) {
-            uint256 share = (price * p.splits[i].basisPoints) / 10000;
-            if (share > 0) {
-                require(jpycToken.transfer(p.splits[i].recipient, share), "Split transfer failed");
-                emit RevenueDistributed(_productId, p.splits[i].recipient, share);
-            }
-        }
-
-        emit Purchase(_productId, msg.sender, price);
-    }
-
-    /**
-     * @dev 商品情報を取得するビュー関数（フロントエンド・APIからの参照用）
-     */
     function getProduct(uint256 _productId) external view returns (
-        uint256 price,
-        bool isActive,
-        address[] memory recipients,
-        uint256[] memory basisPoints
-    ) {
-        Product storage p = products[_productId];
-        price = p.price;
-        isActive = p.isActive;
-        recipients = new address[](p.splits.length);
-        basisPoints = new uint256[](p.splits.length);
-        for(uint256 i = 0; i < p.splits.length; i++) {
-            recipients[i] = p.splits[i].recipient;
-            basisPoints[i] = p.splits[i].basisPoints;
-        }
-    }
+        uint256 price, bool isActive, address[] memory recipients, uint256[] memory basisPoints
+    ) { ... }
 }
 ```
 
-## 6. 実装詳細 & 環境設定
+## 6. API仕様
 
-### 6.1 環境変数 (.env.local / Vercel Env)
+### 6.1 認証API
+
+| メソッド | パス | 認証 | 説明 |
+|---------|------|------|------|
+| POST | /api/auth/register | なし | ユーザー登録（BUYER/SELLER） |
+| GET/POST | /api/auth/[...nextauth] | なし | NextAuth標準ハンドラ |
+
+### 6.2 商品API
+
+| メソッド | パス | 認証 | 説明 |
+|---------|------|------|------|
+| POST | /api/products/register | x-api-key | 商品登録（特商法チェック + Admin Wallet） |
+| GET | /api/products/[id] | セッション+オーナー | 商品詳細取得 |
+| PATCH | /api/products/[id] | セッション+オーナー | 商品情報更新（販売停止含む） |
+| POST | /api/upload | セッション | 画像アップロード（5MB, JPEG/PNG/WebP） |
+| POST | /api/products/[id]/images | セッション+オーナー | 追加画像登録 |
+| DELETE | /api/products/[id]/images/[imageId] | セッション+オーナー | 追加画像削除 |
+
+### 6.3 注文API
+
+| メソッド | パス | 認証 | 説明 |
+|---------|------|------|------|
+| POST | /api/orders | なし | 注文作成（在庫チェック+$transaction） |
+| GET | /api/orders | なし | 注文一覧 |
+| POST | /api/orders/[id]/confirm | なし | オンチェーン確認 |
+| PATCH | /api/orders/[id]/ship | セッション+オーナー | 発送処理 |
+
+### 6.4 ショップAPI
+
+| メソッド | パス | 認証 | 説明 |
+|---------|------|------|------|
+| GET/PATCH | /api/shops/[shopId]/settings | セッション+オーナー | ショップ設定 |
+| GET/PATCH | /api/shops/[shopId]/legal | セッション+オーナー | 特商法設定 |
+| GET | /api/shops/[shopId]/orders | セッション+オーナー | ショップ注文一覧 |
+
+### 6.5 ユーザーAPI
+
+| メソッド | パス | 認証 | 説明 |
+|---------|------|------|------|
+| GET | /api/users/me/orders | セッション | 購入者注文履歴 |
+| GET/POST | /api/addresses | セッション | 配送先一覧・作成 |
+| GET/PATCH/DELETE | /api/addresses/[id] | セッション | 配送先個別操作 |
+
+## 7. フロントエンド画面一覧
+
+### 7.1 公開ページ
+
+| パス | 説明 |
+|------|------|
+| / | 商品一覧 |
+| /products/[id] | 商品詳細（カルーセル画像、購入ボタン+配送先選択） |
+| /shops/[slug] | ショップページ |
+| /shops/[slug]/legal | 特定商取引法に基づく表記 |
+| /login | ログイン |
+| /register | 購入者登録 |
+| /register/seller | 出品者登録 |
+| /privacy | プライバシーポリシー |
+| /terms | 利用規約 |
+
+### 7.2 購入者ページ（要ログイン）
+
+| パス | 説明 |
+|------|------|
+| /mypage | マイページ（注文履歴一覧） |
+| /mypage/orders/[id] | 注文詳細（発送状況） |
+| /mypage/addresses | 配送先管理 |
+
+### 7.3 販売者ページ（要ログイン + SELLER）
+
+| パス | 説明 |
+|------|------|
+| /dashboard | ダッシュボード（サマリー、最近の注文、商品管理、売上分配） |
+| /dashboard/settings | ショップ設定 |
+| /dashboard/settings/legal | 特商法設定 |
+| /dashboard/orders | 注文一覧 |
+| /dashboard/orders/[id] | 注文詳細・発送処理 |
+| /dashboard/products/new | 商品登録 |
+| /dashboard/products/[id] | 商品詳細・編集・販売停止/再開 |
+
+## 8. 実装詳細 & 環境設定
+
+### 8.1 環境変数 (.env.local)
 
 ```bash
 # Database
 DATABASE_URL="postgresql://postgres:password@localhost:5432/stablecoinec?schema=public"
 DIRECT_URL="postgresql://postgres:password@localhost:5432/stablecoinec?schema=public"
 
-# Blockchain (Polygon)
+# Blockchain
 NEXT_PUBLIC_ALCHEMY_API_KEY="your-alchemy-key"
-NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID="your-project-id" # For RainbowKit
-
-# チェーン切り替え (省略時 or "amoy" → Polygon Amoy, "localhost" → Hardhat Node)
+NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID="your-project-id"
 NEXT_PUBLIC_CHAIN="localhost"
 
-# Admin Wallet (Server-side Only - NEXT_PUBLIC_ をつけてはいけない)
-ADMIN_PRIVATE_KEY="0x..."               # 運営ウォレットの秘密鍵。商品登録のガス代支払いに使用。
-NEXT_PUBLIC_CONTRACT_ADDRESS="0x..."    # デプロイしたSplitMarketplaceのアドレス
-NEXT_PUBLIC_JPYC_ADDRESS="0x..."        # Polygon上のJPYCアドレス (Amoy: 0x431D5dfF03120AFA4bDf332c61A6e1766eF37BDB)
+# Admin Wallet (Server-side Only)
+ADMIN_PRIVATE_KEY="0x..."
+NEXT_PUBLIC_CONTRACT_ADDRESS="0x..."
+NEXT_PUBLIC_JPYC_ADDRESS="0x..."
 
-# API認証 (商品登録APIの保護)
-API_SECRET_KEY="your-secret-key"        # /api/products/register の x-api-key ヘッダーと照合
+# API認証
+API_SECRET_KEY="your-secret-key"
 ```
 
-> **注意:** Prisma CLI (`prisma migrate dev`) は `.env.local` を読まないため、
-> プロジェクトルートに `.env` ファイルを作成し `DATABASE_URL` / `DIRECT_URL` を設定すること。
-
-### 6.2 チェーン切り替え機構
-
-`NEXT_PUBLIC_CHAIN=localhost` にすることでHardhat Node (chainId: 31337, RPC: `http://127.0.0.1:8545`) に接続する。
+### 8.2 チェーン切り替え
 
 | 環境変数値 | フロント接続先 | バックエンドRPC |
 |-----------|--------------|----------------|
 | `localhost` | Hardhat Node (chainId: 31337) | `http://127.0.0.1:8545` |
 | それ以外/未設定 | Polygon Amoy (chainId: 80002) | Alchemy URL |
 
-### 6.3 ローカル開発環境 (Hardhat Node)
+### 8.3 APIレスポンスのシリアライズ
 
-テストネット不要でフルフロー検証が可能。
+PrismaのBigInt型とDecimal型は `toString()` で文字列変換してから `NextResponse.json()` に渡す。
 
-```bash
-# ターミナル1: ローカルEVMノード起動
-cd contracts && npx hardhat node
+### 8.4 認証パターン
 
-# ターミナル2: MockERC20(JPYC代替) + Marketplace をデプロイ、テストアカウントにJPYCミント
-npx hardhat run scripts/deploy-local.ts --network localhost
-```
+- **商品登録API:** `x-api-key` ヘッダーで `API_SECRET_KEY` を照合
+- **ショップ管理API:** セッション認証 + `shop.ownerId === session.user.id` を確認
+- **APIキーの受け渡し:** Server Component → Client Component のprops経由
 
-`scripts/deploy-local.ts` が行うこと:
-- **MockERC20** (JPYC代替トークン) をデプロイ
-- **JpycSplitMarketplace** をデプロイ
-- Account #1, #2 に 100,000 JPYC をミント
-- サンプル商品を2件登録 (productId: 0, 1)
-- `.env.local` に設定すべき値を標準出力
+### 8.5 特商法チェック
 
-Hardhat Nodeのデフォルトアカウント（Admin/Owner用）:
-- Address: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
-- Private Key: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+商品登録時に `legalBusinessName`, `legalAddress`, `legalPhone`, `legalEmail` の4項目が設定済みかを確認。未設定の場合は400エラー。出品者登録時にデフォルト支払方法「日本円ステーブルコインJPYCによる決済」を自動設定。
 
-### 6.4 Frontend: 購入ボタン (MetaMask連携)
-
-`wagmi` フックを使用した2ステップ決済フロー。
-
-1. `useWriteContract` (approve) でJPYCの使用を許可。
-2. `useWaitForTransactionReceipt` でApprove完了を監視。
-3. `useWriteContract` (buy) で購入実行。
-4. `useWaitForTransactionReceipt` でBuy完了を監視。
-5. 完了後 `/api/orders` にtxHashをPOSTしDBに注文記録。
-
-### 6.5 APIレスポンスのシリアライズ
-
-PrismaのBigInt型 (`onChainProductId`) とDecimal型 (`priceJPYC`, `amountPaid`) はそのままでは `JSON.stringify` できないため、レスポンス返却前に `toString()` で文字列変換する。
-
-```typescript
-const serialized = {
-  ...product,
-  onChainProductId: product.onChainProductId?.toString() ?? null,
-  priceJPYC: product.priceJPYC.toString(),
-};
-return NextResponse.json({ success: true, product: serialized });
-```
-
-### 6.6 商品登録APIの認証
-
-`/api/products/register` はサーバーサイドのAdmin Walletを使用するため、APIキーで保護する。
-
-- リクエストヘッダー: `x-api-key: <API_SECRET_KEY の値>`
-- ダッシュボードページ (Server Component) から `process.env.API_SECRET_KEY` を読み取り、Client Component (`ProductRegisterForm`) のpropsとして渡す。
-
-## 7. ディレクトリ構造
+## 9. ディレクトリ構造
 
 ```text
 stableCoinEC/
-├── contracts/                        # Hardhat Project
+├── contracts/                          # Hardhat Project
 │   ├── contracts/
-│   │   ├── JpycSplitMarketplace.sol  # メインコントラクト
-│   │   └── mocks/
-│   │       └── MockERC20.sol         # ローカルテスト用ERC20モック
+│   │   ├── JpycSplitMarketplace.sol
+│   │   └── mocks/MockERC20.sol
 │   ├── scripts/
-│   │   ├── deploy.ts                 # Amoy Testnetデプロイ用
-│   │   └── deploy-local.ts           # Hardhat Nodeローカルデプロイ用
+│   │   ├── deploy.ts
+│   │   └── deploy-local.ts
 │   ├── test/
-│   │   └── JpycSplitMarketplace.test.ts
-│   ├── typechain-types/              # TypeChain生成型定義
-│   ├── hardhat.config.ts
 │   └── package.json
 ├── prisma/
 │   ├── schema.prisma
-│   ├── seed.ts                       # 開発用サンプルデータ投入スクリプト
-│   └── migrations/                   # Prismaマイグレーション履歴
+│   ├── seed.ts
+│   └── migrations/
+├── public/
+│   └── uploads/products/               # 画像アップロード先
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx
-│   │   ├── page.tsx                  # 商品一覧 (Server Component)
-│   │   ├── providers.tsx             # Wagmi/RainbowKit Provider
-│   │   ├── globals.css
-│   │   ├── products/[id]/page.tsx    # 商品詳細
-│   │   ├── shops/[slug]/page.tsx     # ショップページ
-│   │   ├── dashboard/page.tsx        # 出品者ダッシュボード
-│   │   └── api/
-│   │       ├── products/register/route.ts   # 商品登録 (Admin Wallet使用)
-│   │       └── orders/
-│   │           ├── route.ts                 # 注文作成・一覧
-│   │           └── [id]/confirm/route.ts    # 注文オンチェーン確認
+│   │   ├── page.tsx                    # 商品一覧
+│   │   ├── providers.tsx               # SessionProvider + WagmiProvider
+│   │   ├── middleware.ts               # 認証ミドルウェア
+│   │   ├── (auth)/                     # 認証ページ (login, register, register/seller)
+│   │   ├── (static)/                   # 静的ページ (privacy, terms)
+│   │   ├── products/[id]/page.tsx      # 商品詳細
+│   │   ├── shops/[slug]/              # ショップ関連
+│   │   ├── dashboard/                  # 販売者ダッシュボード
+│   │   │   ├── page.tsx
+│   │   │   ├── settings/              # ショップ設定 + 特商法
+│   │   │   ├── orders/                # 注文管理
+│   │   │   └── products/              # 商品管理 (new, [id])
+│   │   ├── mypage/                     # 購入者マイページ
+│   │   │   ├── page.tsx
+│   │   │   ├── orders/[id]/
+│   │   │   └── addresses/
+│   │   └── api/                        # API Routes
+│   │       ├── auth/
+│   │       ├── products/
+│   │       ├── orders/
+│   │       ├── shops/
+│   │       ├── users/
+│   │       ├── addresses/
+│   │       └── upload/
 │   ├── components/
-│   │   ├── CheckoutButton.tsx        # MetaMask Approve+Buy フロー
+│   │   ├── CheckoutButton.tsx          # 購入 + 配送先選択
 │   │   ├── ProductCard.tsx
-│   │   ├── ProductRegisterForm.tsx   # 出品フォーム (split設定UI込み)
+│   │   ├── ProductRegisterForm.tsx     # 商品登録（画像アップロード対応）
+│   │   ├── ProductDetailEditor.tsx     # 商品編集・販売停止
+│   │   ├── ImageCarousel.tsx           # 画像カルーセル
+│   │   ├── DashboardOrderList.tsx      # 注文一覧
+│   │   ├── AuthMenu.tsx                # 認証メニュー
 │   │   ├── ConnectButton.tsx
-│   │   └── ui/                       # shadcn/ui コンポーネント
+│   │   └── ui/                         # shadcn/ui
 │   ├── lib/
-│   │   ├── prisma.ts                 # PrismaClientシングルトン
-│   │   ├── viem-admin.ts             # Server-side Admin Wallet (チェーン切り替え対応)
-│   │   ├── wagmi-config.ts           # Client-side Wallet Config (チェーン切り替え対応)
-│   │   └── utils.ts                  # shadcn/ui cn()ユーティリティ
+│   │   ├── auth.ts                     # NextAuth設定
+│   │   ├── prisma.ts
+│   │   ├── viem-admin.ts
+│   │   ├── wagmi-config.ts
+│   │   └── utils.ts
+│   ├── types/
+│   │   └── next-auth.d.ts              # NextAuth型拡張
 │   └── generated/
-│       └── contract-abi.ts           # Hardhatコンパイル後のABI定数
-├── manual/
-│   ├── engineer/                     # エンジニア向けマニュアル
-│   └── user/                         # ユーザー向けマニュアル
+│       └── contract-abi.ts
 ├── design/
-│   ├── design.md                     # 本設計書
-│   └── rule.md                       # 実装ルール
-├── docker-compose.yml                # ローカル開発用PostgreSQL
-├── .env                              # Prisma CLI用DB接続情報 (gitignore対象)
-├── .env.local                        # Next.js実行時環境変数 (gitignore対象)
-├── .env.local.example                # 環境変数テンプレート
+│   ├── design.md                       # 本設計書
+│   ├── rule.md                         # 実装ルール
+│   └── ec-essentials-spec.md           # EC機能実装仕様書
+├── manual/
+│   ├── engineer/                       # エンジニア向けマニュアル
+│   └── user/                           # ユーザー向けマニュアル
+├── docker-compose.yml
 └── package.json
 ```
 
-## 8. 実装ルール
-別ドキュメント rule.md に従うこと
+## 10. 実装ルール
+
+別ドキュメント `rule.md` に従うこと。

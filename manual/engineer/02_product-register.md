@@ -66,6 +66,8 @@ POST /api/products/register
 | description | string | いいえ | 商品の説明 |
 | imageUrl | string | いいえ | 商品画像のURL |
 | priceJPYC | number | はい | JPYC建ての価格 |
+| stock | number | いいえ | 在庫数（デフォルト: 0） |
+| additionalImageUrls | string[] | いいえ | 追加画像URLの配列（最大4枚、`/api/upload` で取得したパス） |
 | splits | array | はい | 売上分配設定（1件以上） |
 
 ### Split設定
@@ -122,6 +124,16 @@ POST /api/products/register
 }
 ```
 
+### 前提条件: 特商法の設定
+
+商品登録前に、ショップの特定商取引法に基づく表記（以下4項目）が設定済みである必要があります:
+- `legalBusinessName`（事業者名）
+- `legalAddress`（住所）
+- `legalPhone`（電話番号）
+- `legalEmail`（メールアドレス）
+
+未設定の場合、400エラーが返されます。設定は `PATCH /api/shops/[shopId]/legal` で行います。
+
 ### エラーコード
 
 | ステータス | エラー | 原因 |
@@ -129,6 +141,8 @@ POST /api/products/register
 | 401 | Unauthorized | x-api-key が不正 |
 | 400 | Missing required fields | 必須パラメータが不足 |
 | 400 | Split percentages must total 10000 basis points | 分配割合の合計が10000でない |
+| 400 | 特定商取引法に基づく表記...の設定が必要です | 特商法の必須項目が未設定 |
+| 404 | ショップが見つかりません | shopId に対応するショップが存在しない |
 | 500 | Contract address not configured | コントラクトアドレスが未設定 |
 | 500 | Transaction failed | オンチェーントランザクションが失敗 |
 | 500 | Internal server error | サーバー内部エラー |
@@ -157,8 +171,60 @@ curl -X POST http://localhost:3000/api/products/register \
   }'
 ```
 
+## 画像アップロードAPI
+
+商品画像は事前にアップロードして URL を取得し、商品登録リクエストに含めます。
+
+### エンドポイント
+
+```
+POST /api/upload
+```
+
+### リクエスト
+
+`multipart/form-data` 形式。`file` フィールドに画像ファイルを添付。
+
+```bash
+curl -X POST http://localhost:3000/api/upload \
+  -H "Cookie: <セッションCookie>" \
+  -F "file=@product-image.jpg"
+```
+
+### 制限
+
+- ファイルサイズ: 最大 5MB
+- 対応形式: JPEG, PNG, WebP
+- 認証: セッション認証が必要
+
+### レスポンス
+
+```json
+{ "imageUrl": "/uploads/products/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.jpg" }
+```
+
+## 追加画像API
+
+### 追加画像の登録
+
+```
+POST /api/products/[id]/images
+Content-Type: application/json
+```
+
+```json
+{ "imageUrl": "/uploads/products/xxx.jpg", "sortOrder": 0 }
+```
+
+### 追加画像の削除
+
+```
+DELETE /api/products/[id]/images/[imageId]
+```
+
 ## 注意事項
 
 - 商品登録にはAdmin Walletにガス代（MATIC）が必要です。残高が不足しているとトランザクションが失敗します。
 - Amoy Testnetでは [Polygon Faucet](https://faucet.polygon.technology/) からテスト用MATICを取得できます。
-- 一度登録した商品のオンチェーン情報は変更できません。価格や分配先を変更する場合は新しい商品として再登録してください。
+- 一度登録した商品のオンチェーン情報（価格・分配先）は変更できません。変更する場合は新しい商品として再登録してください。
+- DB上の商品情報（タイトル、説明、在庫数、販売状態）は `PATCH /api/products/[id]` で変更可能です。
