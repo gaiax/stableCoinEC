@@ -106,15 +106,47 @@ e2e/
 - **商品登録フロー**: Admin Private Key によるオンチェーン登録を含むためE2E対象外
 - **ウォレット接続**: RainbowKit/MetaMask のUI操作が必要なためE2E対象外
 
+## テスト環境分離
+
+テスト実行時に本番環境に影響を与えないよう、環境を完全に分離する仕組みを備えている。
+
+### .env / .env.local のバックアップ・復元
+
+`scripts/test-all.sh` は実行開始時に既存の `.env` と `.env.local` をそれぞれ `.env.bak` / `.env.local.bak` にバックアップする。テスト用の環境変数を `.env.test` として生成し、`.env` と `.env.local` に上書きコピーする。テスト終了後（正常終了・異常終了・中断を問わず）、`trap` によるクリーンアップでバックアップから元の `.env` / `.env.local` を自動復元する。
+
+### テスト専用DB
+
+テスト用データベース `stablecoinec_test` を使用する。開発用DB（`stablecoinec`）とは完全に分離されており、テスト実行ごとにマイグレーション適用とシードデータ投入が行われる。DBが存在しない場合は自動作成される。
+
+### テスト専用Hardhatノード
+
+テスト実行時にバックグラウンドで Hardhat ノード（`localhost:8545`）を起動し、`deploy-local.ts` でコントラクト（MockERC20 + JpycSplitMarketplace）をデプロイする。デプロイ後のコントラクトアドレスを自動取得し、`.env.test` に反映する。テスト終了後にHardhatノードのプロセスは自動停止される。
+
+### scripts/test-all.sh による統合テスト実行
+
+全テストを一括実行するシェルスクリプト。以下のステップを順に実行する:
+
+1. `.env` / `.env.local` をバックアップ
+2. テスト用DB作成 + マイグレーション + シードデータ投入
+3. Hardhat ノード起動（バックグラウンド、起動待機あり）
+4. コントラクトデプロイ → アドレス取得
+5. `.env.test` 生成 → `.env` / `.env.local` に上書き
+6. Jest ユニットテスト実行
+7. Playwright E2E テスト実行
+8. クリーンアップ（`.env` 復元、Hardhat ノード停止、結果サマリー表示）
+
 ## 実行コマンド
 
 ```bash
-# テスト用DB準備（初回のみ）
+# 全テスト一括実行（推奨）— 環境分離・DB/コントラクト自動セットアップ
+npm run test:all
+
+# テスト用DB準備（手動で個別実行する場合、初回のみ）
 docker exec stablecoinec_db psql -U postgres -c "CREATE DATABASE stablecoinec_test;"
 DATABASE_URL="...stablecoinec_test..." DIRECT_URL="...stablecoinec_test..." npx prisma migrate deploy
 DATABASE_URL="...stablecoinec_test..." DIRECT_URL="...stablecoinec_test..." npx tsx prisma/seed.ts
 
-# E2Eテスト実行
+# E2Eテスト単体実行（手動で環境準備が必要）
 npx playwright test
 
 # UIモードでデバッグ

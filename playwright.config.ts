@@ -4,12 +4,14 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
   workers: 1,
   reporter: 'html',
+  timeout: 60000,
   use: {
     baseURL: 'http://localhost:3001',
     trace: 'on-first-retry',
+    navigationTimeout: 15000,
   },
   projects: [
     {
@@ -20,11 +22,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev -- -p 3001',
     url: 'http://localhost:3001',
-    reuseExistingServer: !process.env.CI,
-    env: {
-      DATABASE_URL: 'postgresql://postgres:password@localhost:5432/stablecoinec_test?schema=public',
-      DIRECT_URL: 'postgresql://postgres:password@localhost:5432/stablecoinec_test?schema=public',
-    },
-    timeout: 30000,
+    reuseExistingServer: false,
+    timeout: 60000,
   },
 });

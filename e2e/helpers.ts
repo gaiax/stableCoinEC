@@ -5,6 +5,7 @@ import { Page, expect } from '@playwright/test';
  */
 export async function login(page: Page, email: string, password: string) {
   await page.goto('/login');
+  await page.locator('#email').waitFor({ state: 'visible', timeout: 30000 });
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(password);
   await page.locator('button[type="submit"]').click();

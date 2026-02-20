@@ -44,7 +44,28 @@ npx tsx prisma/seed.ts
 
 ## テスト実行
 
-### 全テスト実行
+### 統合テスト実行（推奨）
+
+すべてのテスト（Jest ユニットテスト + Playwright E2E テスト）を環境分離された状態で一括実行します。
+
+```bash
+npm run test:all
+```
+
+このコマンドは内部で `scripts/test-all.sh` を実行し、以下を自動的に行います:
+
+1. `.env` / `.env.local` をバックアップしてテスト用に差し替え
+2. テスト用データベース（`stablecoinec_test`）を準備（作成・マイグレーション・シードデータ投入）
+3. Hardhat ノードをバックグラウンドで起動し、コントラクトをローカルデプロイ
+4. Jest ユニットテストを実行
+5. Playwright E2E テストを実行
+6. テスト終了後に `.env` / `.env.local` を元の状態に復元し、Hardhat ノードを停止
+
+テスト結果はサマリーとして最後に表示されます。異常終了や中断（Ctrl+C）時も `.env` の復元は自動で行われます。
+
+> **注意**: 個別のテストコマンド（`npm test`、`npx playwright test`）も引き続き使用できますが、テスト用DB・Hardhatノード・環境変数の手動セットアップが必要です。
+
+### E2E テスト単体実行
 
 ```bash
 npx playwright test
