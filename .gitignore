@@ -19,7 +19,11 @@ contracts/cache/
 # Uploaded files
 public/uploads/
 
+# Claude Code
+.claude/settings.local.json
+
 # Misc
 .DS_Store
 *.log
 .env
+tsconfig.tsbuildinfo
