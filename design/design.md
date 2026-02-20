@@ -27,6 +27,7 @@
 | Authentication | NextAuth.js v5 (beta) + bcryptjs |
 | Wallet | RainbowKit + wagmi v2 + viem v2 |
 | Smart Contract | Solidity 0.8.20 (Hardhat 2.x + OpenZeppelin 5.x) |
+| E2E Testing | Playwright (Chromium) |
 
 ## 3. システムアーキテクチャ
 

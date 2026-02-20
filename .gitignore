@@ -22,6 +22,12 @@ public/uploads/
 # Claude Code
 .claude/settings.local.json
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Misc
 .DS_Store
 *.log
