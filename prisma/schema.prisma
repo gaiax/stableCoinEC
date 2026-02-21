@@ -63,6 +63,9 @@ model Shop {
   legalReturnPolicy  String?
   legalPaymentMethod String?
 
+  // Walletアドレス (売上受取先・デフォルト分配先)
+  walletAddress String?
+
   // 送料設定
   shippingFee           Decimal? // 全国一律送料(null=送料無料)
   freeShippingThreshold Decimal? // この金額以上で送料無料

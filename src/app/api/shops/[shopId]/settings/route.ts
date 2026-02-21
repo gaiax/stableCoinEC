@@ -23,6 +23,7 @@ export async function GET(
         slug: true,
         description: true,
         logoUrl: true,
+        walletAddress: true,
         shippingFee: true,
         freeShippingThreshold: true,
         createdAt: true,
@@ -77,7 +78,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, description, shippingFee, freeShippingThreshold } = body;
+    const { name, description, walletAddress, shippingFee, freeShippingThreshold } = body;
 
     const updateData: Record<string, unknown> = {};
 
@@ -90,6 +91,17 @@ export async function PATCH(
 
     if (description !== undefined) {
       updateData.description = description || null;
+    }
+
+    if (walletAddress !== undefined) {
+      if (walletAddress === null || walletAddress === '') {
+        updateData.walletAddress = null;
+      } else {
+        if (typeof walletAddress !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+          return NextResponse.json({ error: 'Walletアドレスは0xで始まる42文字の形式で入力してください' }, { status: 400 });
+        }
+        updateData.walletAddress = walletAddress;
+      }
     }
 
     if (shippingFee !== undefined) {

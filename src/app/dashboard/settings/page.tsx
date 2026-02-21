@@ -24,6 +24,7 @@ export default async function ShopSettingsPage() {
       name: true,
       slug: true,
       description: true,
+      walletAddress: true,
       shippingFee: true,
       freeShippingThreshold: true,
     },
@@ -43,6 +44,7 @@ export default async function ShopSettingsPage() {
   const initialData = {
     name: shop.name,
     description: shop.description,
+    walletAddress: shop.walletAddress,
     shippingFee: shop.shippingFee?.toString() ?? null,
     freeShippingThreshold: shop.freeShippingThreshold?.toString() ?? null,
   };
