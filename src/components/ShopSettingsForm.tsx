@@ -12,6 +12,7 @@ interface ShopSettingsFormProps {
   initialData: {
     name: string;
     description: string | null;
+    walletAddress: string | null;
     shippingFee: string | null;
     freeShippingThreshold: string | null;
   };
@@ -20,6 +21,7 @@ interface ShopSettingsFormProps {
 export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps) {
   const [name, setName] = useState(initialData.name);
   const [description, setDescription] = useState(initialData.description ?? '');
+  const [walletAddress, setWalletAddress] = useState(initialData.walletAddress ?? '');
   const [shippingFee, setShippingFee] = useState(initialData.shippingFee ?? '');
   const [freeShippingThreshold, setFreeShippingThreshold] = useState(
     initialData.freeShippingThreshold ?? ''
@@ -41,6 +43,7 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
+          walletAddress: walletAddress.trim() || null,
           shippingFee: shippingFee || null,
           freeShippingThreshold: freeShippingThreshold || null,
         }),
@@ -88,6 +91,22 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
               rows={3}
               placeholder="ショップの説明を入力してください"
             />
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-3">Walletアドレス</h3>
+            <div>
+              <Label htmlFor="walletAddress">Walletアドレス</Label>
+              <Input
+                id="walletAddress"
+                value={walletAddress}
+                onChange={(e) => setWalletAddress(e.target.value)}
+                placeholder="0x..."
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                売上の受取先アドレスです。商品登録時のデフォルト分配先になります
+              </p>
+            </div>
           </div>
 
           <div className="border-t pt-4">

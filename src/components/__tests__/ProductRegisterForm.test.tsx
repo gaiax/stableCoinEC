@@ -12,6 +12,7 @@ describe('ProductRegisterForm', () => {
   const defaultProps = {
     shopId: 'shop-1',
     apiKey: 'test-api-key',
+    shopWalletAddress: '0x1234567890abcdef1234567890abcdef12345678',
   };
 
   beforeEach(() => {
@@ -24,6 +25,25 @@ describe('ProductRegisterForm', () => {
     expect(screen.getByLabelText('商品名 *')).toBeInTheDocument();
     expect(screen.getByLabelText('価格 (JPYC) *')).toBeInTheDocument();
     expect(screen.getByText('商品を登録する')).toBeInTheDocument();
+  });
+
+  it('ショップWalletアドレスが初期値として入力される', () => {
+    render(<ProductRegisterForm {...defaultProps} />);
+    const addressInput = screen.getByPlaceholderText('受取アドレス (0x...)');
+    expect(addressInput).toHaveValue('0x1234567890abcdef1234567890abcdef12345678');
+  });
+
+  it('shopWalletAddressがnullの場合は空になる', () => {
+    render(<ProductRegisterForm {...defaultProps} shopWalletAddress={null} />);
+    const addressInput = screen.getByPlaceholderText('受取アドレス (0x...)');
+    expect(addressInput).toHaveValue('');
+  });
+
+  it('初期の分配率が100%になっている', () => {
+    render(<ProductRegisterForm {...defaultProps} />);
+    const pctInput = screen.getByPlaceholderText('% (例: 50)');
+    expect(pctInput).toHaveValue(100);
+    expect(screen.getByText(/合計 100%/)).toBeInTheDocument();
   });
 
   it('分配設定を追加できる', () => {
@@ -48,19 +68,56 @@ describe('ProductRegisterForm', () => {
     expect(screen.getAllByPlaceholderText('受取アドレス (0x...)')).toHaveLength(1);
   });
 
-  it('分配合計が10000でない場合に送信ボタンが無効になる', () => {
+  it('パーセンテージ変更で金額が連動する', () => {
     render(<ProductRegisterForm {...defaultProps} />);
 
-    // 分配設定のpercentageを5000に変更（10000ではない）
-    const bpInput = screen.getByPlaceholderText('bp (例: 5000=50%)');
-    fireEvent.change(bpInput, { target: { value: '5000' } });
+    // 価格を入力
+    fireEvent.change(screen.getByLabelText('価格 (JPYC) *'), { target: { value: '1000' } });
 
-    // ボタンが disabled になることを確認
+    // パーセンテージを50に変更
+    const pctInput = screen.getByPlaceholderText('% (例: 50)');
+    fireEvent.change(pctInput, { target: { value: '50' } });
+
+    // 金額が500になること
+    const amountInput = screen.getByPlaceholderText('金額');
+    expect(amountInput).toHaveValue(500);
+  });
+
+  it('金額変更でパーセンテージが連動する', () => {
+    render(<ProductRegisterForm {...defaultProps} />);
+
+    // 価格を入力
+    fireEvent.change(screen.getByLabelText('価格 (JPYC) *'), { target: { value: '1000' } });
+
+    // 金額を250に変更
+    const amountInput = screen.getByPlaceholderText('金額');
+    fireEvent.change(amountInput, { target: { value: '250' } });
+
+    // パーセンテージが25になること
+    const pctInput = screen.getByPlaceholderText('% (例: 50)');
+    expect(pctInput).toHaveValue(25);
+  });
+
+  it('合計100%でない場合に警告が表示される', () => {
+    render(<ProductRegisterForm {...defaultProps} />);
+
+    // パーセンテージを50に変更
+    const pctInput = screen.getByPlaceholderText('% (例: 50)');
+    fireEvent.change(pctInput, { target: { value: '50' } });
+
+    // 警告メッセージ
+    expect(screen.getByText(/分配比率の合計が100%になっていません/)).toBeInTheDocument();
+    expect(screen.getByText(/現在: 50%/)).toBeInTheDocument();
+
+    // ボタンが disabled
     const submitButton = screen.getByText('商品を登録する');
     expect(submitButton).toBeDisabled();
+  });
 
-    // 合計ラベルに5000が表示される
-    expect(screen.getByText(/5000\/10000 bp/)).toBeInTheDocument();
+  it('商品価格が未入力の場合は金額フィールドが無効になる', () => {
+    render(<ProductRegisterForm {...defaultProps} />);
+    const amountInput = screen.getByPlaceholderText('金額');
+    expect(amountInput).toBeDisabled();
   });
 
   it('送信成功時に完了メッセージが表示される', async () => {
@@ -74,7 +131,7 @@ describe('ProductRegisterForm', () => {
     fireEvent.change(screen.getByLabelText('商品名 *'), { target: { value: 'テスト商品' } });
     fireEvent.change(screen.getByLabelText('価格 (JPYC) *'), { target: { value: '1000' } });
 
-    // percentage はデフォルト10000のまま
+    // percentage はデフォルト100%のまま
     fireEvent.click(screen.getByText('商品を登録する'));
 
     await waitFor(() => {
@@ -87,6 +144,10 @@ describe('ProductRegisterForm', () => {
         'x-api-key': 'test-api-key',
       }),
     }));
+
+    // basis points に変換されていることを確認 (100% → 10000)
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(callBody.splits[0].percentage).toBe(10000);
   });
 
   it('送信失敗時にエラーメッセージが表示される', async () => {

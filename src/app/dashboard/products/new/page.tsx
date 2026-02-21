@@ -19,6 +19,7 @@ export default async function NewProductPage() {
     where: { ownerId: session.user.id },
     select: {
       id: true,
+      walletAddress: true,
       legalBusinessName: true,
       legalAddress: true,
       legalPhone: true,
@@ -47,6 +48,7 @@ export default async function NewProductPage() {
         <ProductRegisterForm
           shopId={shop.id}
           apiKey={process.env.API_SECRET_KEY ?? ''}
+          shopWalletAddress={shop.walletAddress}
         />
       ) : (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
