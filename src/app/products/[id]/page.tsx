@@ -11,7 +11,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     where: { id },
     include: {
       shop: true,
-      splits: true,
       images: { orderBy: { sortOrder: 'asc' } },
     },
   });
@@ -55,18 +54,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       {product.description && (
         <div className="text-gray-700 mb-6 whitespace-pre-wrap">{product.description}</div>
       )}
-
-      <div className="border rounded-lg p-4 mb-6">
-        <h3 className="font-semibold mb-2">売上分配</h3>
-        {product.splits.map((split) => (
-          <div key={split.id} className="flex justify-between text-sm text-muted-foreground py-1">
-            <span className="font-mono">
-              {split.recipientAddress.slice(0, 6)}...{split.recipientAddress.slice(-4)}
-            </span>
-            <span>{split.percentage / 100}%</span>
-          </div>
-        ))}
-      </div>
 
       {product.onChainProductId !== null ? (
         <CheckoutButton

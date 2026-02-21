@@ -320,7 +320,7 @@ contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
 | パス | 説明 |
 |------|------|
 | / | 商品一覧 |
-| /products/[id] | 商品詳細（カルーセル画像、購入ボタン+配送先選択） |
+| /products/[id] | 商品詳細（カルーセル画像、購入ボタン+配送先選択）※売上分配は非表示 |
 | /shops/[slug] | ショップページ |
 | /shops/[slug]/legal | 特定商取引法に基づく表記 |
 | /login | ログイン |
@@ -447,7 +447,7 @@ stableCoinEC/
 │   │   ├── ImageCarousel.tsx           # 画像カルーセル
 │   │   ├── DashboardOrderList.tsx      # 注文一覧
 │   │   ├── AuthMenu.tsx                # 認証メニュー
-│   │   ├── ConnectButton.tsx
+│   │   ├── ConnectButton.tsx           # ウォレット接続 + JPYC残高表示
 │   │   └── ui/                         # shadcn/ui
 │   ├── lib/
 │   │   ├── auth.ts                     # NextAuth設定
@@ -462,7 +462,8 @@ stableCoinEC/
 ├── design/
 │   ├── design.md                       # 本設計書
 │   ├── rule.md                         # 実装ルール
-│   └── ec-essentials-spec.md           # EC機能実装仕様書
+│   ├── ec-essentials-spec.md           # EC機能実装仕様書
+│   └── split-ui-improvement-spec.md   # 分配率UI改善+JPYC残高表示仕様書
 ├── manual/
 │   ├── engineer/                       # エンジニア向けマニュアル
 │   └── user/                           # ユーザー向けマニュアル
