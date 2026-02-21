@@ -42,22 +42,27 @@ test.describe('配送先管理', () => {
       await page.locator('#address1').fill('梅田1-1-1');
       await page.locator('#phone').fill('080-1234-5678');
       await page.locator('button', { hasText: '保存する' }).click();
-      await expect(page.locator('text=編集テスト')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('text=編集テスト')).toBeVisible({ timeout: 10000 });
     }
 
     // 編集ボタンをクリック
     await page.locator('button', { hasText: '編集' }).first().click();
 
-    // 宛名を変更
+    // 編集フォームが表示されるのを待つ
+    await expect(page.locator('text=住所を編集')).toBeVisible({ timeout: 5000 });
+
+    // 宛名を変更（fill は自動的にフィールドをクリアしてから入力する）
     const nameInput = page.locator('#name');
-    await nameInput.clear();
     await nameInput.fill('更新された宛名');
 
     // 保存
     await page.locator('button', { hasText: '保存する' }).click();
 
+    // フォームが閉じて一覧に戻るのを待つ
+    await expect(page.locator('text=住所を編集')).toBeHidden({ timeout: 10000 });
+
     // 変更が反映される
-    await expect(page.locator('text=更新された宛名')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=更新された宛名')).toBeVisible({ timeout: 10000 });
   });
 
   test('配送先を削除 → 一覧から消える', async ({ page }) => {

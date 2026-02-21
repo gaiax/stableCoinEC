@@ -5,12 +5,15 @@ import { Page, expect } from '@playwright/test';
  */
 export async function login(page: Page, email: string, password: string) {
   await page.goto('/login');
-  await page.locator('#email').waitFor({ state: 'visible', timeout: 30000 });
-  await page.locator('#email').fill(email);
+  await page.waitForLoadState('domcontentloaded');
+  // Next.js dev モードでは初回コンパイルに時間がかかる場合がある
+  const emailInput = page.locator('#email');
+  await emailInput.waitFor({ state: 'visible', timeout: 60000 });
+  await emailInput.fill(email);
   await page.locator('#password').fill(password);
   await page.locator('button[type="submit"]').click();
   // ログイン後のリダイレクトを待つ
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
 }
 
 /**
