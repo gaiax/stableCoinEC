@@ -12,6 +12,9 @@ contracts/cache/
 .env
 .env.local
 .env.*.local
+.env.bak
+.env.local.bak
+.env.test
 
 # Prisma generated client (regenerated on npm install)
 # prisma/migrations/ is tracked for reproducible deployments
@@ -21,6 +24,12 @@ public/uploads/
 
 # Claude Code
 .claude/settings.local.json
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # Misc
 .DS_Store
