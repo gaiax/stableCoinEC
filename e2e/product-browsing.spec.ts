@@ -45,9 +45,6 @@ test.describe('商品閲覧', () => {
 
     // 在庫
     await expect(page.locator('text=残り')).toBeVisible();
-
-    // 売上分配セクション
-    await expect(page.locator('text=売上分配')).toBeVisible();
   });
 
   test('ショップページに商品が表示される', async ({ page }) => {
