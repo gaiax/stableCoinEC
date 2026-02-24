@@ -476,7 +476,12 @@ export default function ProductDetailEditor({ product: initialProduct }: Props) 
                       <span className="font-mono text-muted-foreground">
                         {split.recipientAddress.slice(0, 6)}...{split.recipientAddress.slice(-4)}
                       </span>
-                      <span>{(split.percentage / 100).toFixed(1)}%</span>
+                      <span>
+                        {Math.round(split.percentage / 10000 * Number(product.priceJPYC)).toLocaleString()} JPYC
+                        <span className="text-muted-foreground ml-1">
+                          ({(split.percentage / 100).toFixed(1)}%)
+                        </span>
+                      </span>
                     </div>
                   ))}
                 </div>
