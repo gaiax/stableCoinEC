@@ -2,14 +2,14 @@
  * ローカル開発用デプロイスクリプト
  *
  * 1. MockERC20 (JPYC代替) をデプロイ
- * 2. JpycSplitMarketplace をデプロイ
+ * 2. JpycSplitMarketplace をUUPS Proxyでデプロイ
  * 3. テストアカウントにJPYCをミント
  * 4. サンプル商品を登録
  *
  * 使い方:
  *   npx hardhat run scripts/deploy-local.ts --network localhost
  */
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 async function main() {
   const [owner, seller, buyer] = await ethers.getSigners();
@@ -27,12 +27,16 @@ async function main() {
   const mockJpycAddress = await mockJpyc.getAddress();
   console.log("\n✅ MockJPYC deployed to:", mockJpycAddress);
 
-  // 2. JpycSplitMarketplace をデプロイ
+  // 2. JpycSplitMarketplace をUUPS Proxyでデプロイ
   const JpycSplitMarketplace = await ethers.getContractFactory("JpycSplitMarketplace");
-  const marketplace = await JpycSplitMarketplace.deploy(mockJpycAddress);
+  const marketplace = await upgrades.deployProxy(
+    JpycSplitMarketplace,
+    [mockJpycAddress],
+    { kind: "uups" }
+  );
   await marketplace.waitForDeployment();
   const marketplaceAddress = await marketplace.getAddress();
-  console.log("✅ Marketplace deployed to:", marketplaceAddress);
+  console.log("✅ Marketplace (Proxy) deployed to:", marketplaceAddress);
 
   // 3. テストアカウントにJPYCをミント
   const mintAmount = ethers.parseEther("100000"); // 100,000 JPYC

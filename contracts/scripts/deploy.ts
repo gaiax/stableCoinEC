@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 async function main() {
   const jpycAddress =
@@ -7,11 +7,15 @@ async function main() {
 
   const JpycSplitMarketplace =
     await ethers.getContractFactory("JpycSplitMarketplace");
-  const marketplace = await JpycSplitMarketplace.deploy(jpycAddress);
+  const marketplace = await upgrades.deployProxy(
+    JpycSplitMarketplace,
+    [jpycAddress],
+    { kind: "uups" }
+  );
   await marketplace.waitForDeployment();
 
   const address = await marketplace.getAddress();
-  console.log(`JpycSplitMarketplace deployed to: ${address}`);
+  console.log(`JpycSplitMarketplace (Proxy) deployed to: ${address}`);
   console.log(`Set NEXT_PUBLIC_CONTRACT_ADDRESS=${address} in .env.local`);
 }
 
