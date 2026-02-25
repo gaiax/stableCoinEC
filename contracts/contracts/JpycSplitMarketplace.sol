@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
+contract JpycSplitMarketplace is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
 
-    IERC20 public immutable jpycToken;
+    IERC20 public jpycToken;
 
     struct Split {
         address recipient;
@@ -27,7 +29,15 @@ contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
     event Purchase(uint256 indexed productId, address indexed buyer, uint256 price);
     event RevenueDistributed(uint256 indexed productId, address indexed recipient, uint256 amount);
 
-    constructor(address _jpycTokenAddress) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _jpycTokenAddress) public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
         jpycToken = IERC20(_jpycTokenAddress);
     }
 
@@ -61,7 +71,7 @@ contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
         return productId;
     }
 
-    function buy(uint256 _productId) external nonReentrant {
+    function buy(uint256 _productId) external virtual nonReentrant {
         Product storage p = products[_productId];
         require(p.isActive, "Product not active");
 
@@ -96,4 +106,8 @@ contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
             basisPoints[i] = p.splits[i].basisPoints;
         }
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    uint256[50] private __gap;
 }

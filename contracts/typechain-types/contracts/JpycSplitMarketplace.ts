@@ -26,29 +26,43 @@ import type {
 export interface JpycSplitMarketplaceInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "UPGRADE_INTERFACE_VERSION"
       | "buy"
       | "getProduct"
+      | "initialize"
       | "jpycToken"
       | "nextProductId"
       | "owner"
       | "products"
+      | "proxiableUUID"
       | "registerProduct"
       | "renounceOwnership"
       | "transferOwnership"
+      | "upgradeToAndCall"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
+      | "Initialized"
       | "OwnershipTransferred"
       | "ProductRegistered"
       | "Purchase"
       | "RevenueDistributed"
+      | "Upgraded"
   ): EventFragment;
 
+  encodeFunctionData(
+    functionFragment: "UPGRADE_INTERFACE_VERSION",
+    values?: undefined
+  ): string;
   encodeFunctionData(functionFragment: "buy", values: [BigNumberish]): string;
   encodeFunctionData(
     functionFragment: "getProduct",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "initialize",
+    values: [AddressLike]
   ): string;
   encodeFunctionData(functionFragment: "jpycToken", values?: undefined): string;
   encodeFunctionData(
@@ -59,6 +73,10 @@ export interface JpycSplitMarketplaceInterface extends Interface {
   encodeFunctionData(
     functionFragment: "products",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "proxiableUUID",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "registerProduct",
@@ -72,9 +90,18 @@ export interface JpycSplitMarketplaceInterface extends Interface {
     functionFragment: "transferOwnership",
     values: [AddressLike]
   ): string;
+  encodeFunctionData(
+    functionFragment: "upgradeToAndCall",
+    values: [AddressLike, BytesLike]
+  ): string;
 
+  decodeFunctionResult(
+    functionFragment: "UPGRADE_INTERFACE_VERSION",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "buy", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "getProduct", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "jpycToken", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "nextProductId",
@@ -82,6 +109,10 @@ export interface JpycSplitMarketplaceInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "products", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "proxiableUUID",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "registerProduct",
     data: BytesLike
@@ -94,6 +125,22 @@ export interface JpycSplitMarketplaceInterface extends Interface {
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "upgradeToAndCall",
+    data: BytesLike
+  ): Result;
+}
+
+export namespace InitializedEvent {
+  export type InputTuple = [version: BigNumberish];
+  export type OutputTuple = [version: bigint];
+  export interface OutputObject {
+    version: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace OwnershipTransferredEvent {
@@ -162,6 +209,18 @@ export namespace RevenueDistributedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
+export namespace UpgradedEvent {
+  export type InputTuple = [implementation: AddressLike];
+  export type OutputTuple = [implementation: string];
+  export interface OutputObject {
+    implementation: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export interface JpycSplitMarketplace extends BaseContract {
   connect(runner?: ContractRunner | null): JpycSplitMarketplace;
   waitForDeployment(): Promise<this>;
@@ -205,6 +264,8 @@ export interface JpycSplitMarketplace extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  UPGRADE_INTERFACE_VERSION: TypedContractMethod<[], [string], "view">;
+
   buy: TypedContractMethod<[_productId: BigNumberish], [void], "nonpayable">;
 
   getProduct: TypedContractMethod<
@@ -220,6 +281,12 @@ export interface JpycSplitMarketplace extends BaseContract {
     "view"
   >;
 
+  initialize: TypedContractMethod<
+    [_jpycTokenAddress: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
   jpycToken: TypedContractMethod<[], [string], "view">;
 
   nextProductId: TypedContractMethod<[], [bigint], "view">;
@@ -231,6 +298,8 @@ export interface JpycSplitMarketplace extends BaseContract {
     [[bigint, boolean] & { price: bigint; isActive: boolean }],
     "view"
   >;
+
+  proxiableUUID: TypedContractMethod<[], [string], "view">;
 
   registerProduct: TypedContractMethod<
     [
@@ -250,10 +319,19 @@ export interface JpycSplitMarketplace extends BaseContract {
     "nonpayable"
   >;
 
+  upgradeToAndCall: TypedContractMethod<
+    [newImplementation: AddressLike, data: BytesLike],
+    [void],
+    "payable"
+  >;
+
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
   ): T;
 
+  getFunction(
+    nameOrSignature: "UPGRADE_INTERFACE_VERSION"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "buy"
   ): TypedContractMethod<[_productId: BigNumberish], [void], "nonpayable">;
@@ -272,6 +350,13 @@ export interface JpycSplitMarketplace extends BaseContract {
     "view"
   >;
   getFunction(
+    nameOrSignature: "initialize"
+  ): TypedContractMethod<
+    [_jpycTokenAddress: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "jpycToken"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
@@ -287,6 +372,9 @@ export interface JpycSplitMarketplace extends BaseContract {
     [[bigint, boolean] & { price: bigint; isActive: boolean }],
     "view"
   >;
+  getFunction(
+    nameOrSignature: "proxiableUUID"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "registerProduct"
   ): TypedContractMethod<
@@ -304,7 +392,21 @@ export interface JpycSplitMarketplace extends BaseContract {
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "upgradeToAndCall"
+  ): TypedContractMethod<
+    [newImplementation: AddressLike, data: BytesLike],
+    [void],
+    "payable"
+  >;
 
+  getEvent(
+    key: "Initialized"
+  ): TypedContractEvent<
+    InitializedEvent.InputTuple,
+    InitializedEvent.OutputTuple,
+    InitializedEvent.OutputObject
+  >;
   getEvent(
     key: "OwnershipTransferred"
   ): TypedContractEvent<
@@ -333,8 +435,26 @@ export interface JpycSplitMarketplace extends BaseContract {
     RevenueDistributedEvent.OutputTuple,
     RevenueDistributedEvent.OutputObject
   >;
+  getEvent(
+    key: "Upgraded"
+  ): TypedContractEvent<
+    UpgradedEvent.InputTuple,
+    UpgradedEvent.OutputTuple,
+    UpgradedEvent.OutputObject
+  >;
 
   filters: {
+    "Initialized(uint64)": TypedContractEvent<
+      InitializedEvent.InputTuple,
+      InitializedEvent.OutputTuple,
+      InitializedEvent.OutputObject
+    >;
+    Initialized: TypedContractEvent<
+      InitializedEvent.InputTuple,
+      InitializedEvent.OutputTuple,
+      InitializedEvent.OutputObject
+    >;
+
     "OwnershipTransferred(address,address)": TypedContractEvent<
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
@@ -377,6 +497,17 @@ export interface JpycSplitMarketplace extends BaseContract {
       RevenueDistributedEvent.InputTuple,
       RevenueDistributedEvent.OutputTuple,
       RevenueDistributedEvent.OutputObject
+    >;
+
+    "Upgraded(address)": TypedContractEvent<
+      UpgradedEvent.InputTuple,
+      UpgradedEvent.OutputTuple,
+      UpgradedEvent.OutputObject
+    >;
+    Upgraded: TypedContractEvent<
+      UpgradedEvent.InputTuple,
+      UpgradedEvent.OutputTuple,
+      UpgradedEvent.OutputObject
     >;
   };
 }
