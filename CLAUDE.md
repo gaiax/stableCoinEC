@@ -82,6 +82,13 @@ if (decoded.eventName === 'ProductRegistered') {
 }
 ```
 
+## プルリクエストの作成ルール
+- **`gh` CLI は使わない** — このプロジェクトでは `gh pr create` 等の GitHub CLI コマンドは使用不可
+- PR作成時は以下をテキストで出力し、ユーザーが手動でGitHub上に作成する:
+  1. **比較URL**: `https://github.com/gaiax/stableCoinEC/compare/main...<branch-name>`
+  2. **タイトル**: コミットメッセージに準じた簡潔な1行
+  3. **本文**: Summary / Changes / Test plan を含むMarkdown
+
 ## 既知の注意点
 - **Hardhat v3は使わない** - `@nomicfoundation/hardhat-toolbox@^5` との互換性のため v2 を維持
 - **package.json に `"type": "module"` を入れない** - Hardhat 2.x との互換性
