@@ -50,8 +50,9 @@ model Shop {
   owner       User      @relation(fields: [ownerId], references: [id])
   name        String
   slug        String    @unique
-  description String?
-  logoUrl     String?
+  description   String?
+  logoUrl       String?
+  coverImageUrl String?
 
   // 特定商取引法に基づく表記
   legalBusinessName  String?

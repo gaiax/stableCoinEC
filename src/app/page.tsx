@@ -32,6 +32,7 @@ export default async function HomePage() {
               imageUrl={product.imageUrl}
               priceJPYC={product.priceJPYC.toString()}
               shopName={product.shop.name}
+              shopSlug={product.shop.slug}
             />
           ))}
         </div>

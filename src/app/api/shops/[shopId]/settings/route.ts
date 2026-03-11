@@ -23,6 +23,7 @@ export async function GET(
         slug: true,
         description: true,
         logoUrl: true,
+        coverImageUrl: true,
         walletAddress: true,
         shippingFee: true,
         freeShippingThreshold: true,
@@ -78,7 +79,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, description, walletAddress, shippingFee, freeShippingThreshold } = body;
+    const { name, description, coverImageUrl, walletAddress, shippingFee, freeShippingThreshold } = body;
 
     const updateData: Record<string, unknown> = {};
 
@@ -91,6 +92,10 @@ export async function PATCH(
 
     if (description !== undefined) {
       updateData.description = description || null;
+    }
+
+    if (coverImageUrl !== undefined) {
+      updateData.coverImageUrl = coverImageUrl || null;
     }
 
     if (walletAddress !== undefined) {

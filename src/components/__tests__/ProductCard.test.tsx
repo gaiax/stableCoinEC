@@ -1,8 +1,15 @@
 /**
  * ProductCard コンポーネントテスト
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ProductCard } from '../ProductCard';
+
+const mockPush = jest.fn();
+
+// モック: next/navigation
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
 
 // モック: next/link
 jest.mock('next/link', () => {
@@ -17,6 +24,10 @@ describe('ProductCard', () => {
     title: 'テスト商品',
     priceJPYC: '1000',
   };
+
+  beforeEach(() => {
+    mockPush.mockClear();
+  });
 
   it('商品名と価格が表示される', () => {
     render(<ProductCard {...defaultProps} />);
@@ -39,10 +50,22 @@ describe('ProductCard', () => {
     expect(screen.getByText('テストショップ')).toBeInTheDocument();
   });
 
-  it('詳細リンクのhrefが正しい', () => {
+  it('カードクリックで商品詳細に遷移する', () => {
     render(<ProductCard {...defaultProps} />);
-    const link = screen.getByRole('link');
-    expect(link).toHaveAttribute('href', '/products/product-1');
+    fireEvent.click(screen.getByText('テスト商品'));
+    expect(mockPush).toHaveBeenCalledWith('/products/product-1');
+  });
+
+  it('shopSlugがある場合にショップへのリンクが表示される', () => {
+    render(<ProductCard {...defaultProps} shopName="テストショップ" shopSlug="test-shop" />);
+    const shopLink = screen.getByRole('link', { name: 'テストショップ' });
+    expect(shopLink).toHaveAttribute('href', '/shops/test-shop');
+  });
+
+  it('shopSlugがない場合はショップリンクではなくテキスト表示', () => {
+    render(<ProductCard {...defaultProps} shopName="テストショップ" />);
+    expect(screen.getByText('テストショップ')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'テストショップ' })).not.toBeInTheDocument();
   });
 
   it('画像URLがある場合にimgが表示される', () => {

@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ProductCardProps {
@@ -8,11 +11,17 @@ interface ProductCardProps {
   imageUrl?: string | null;
   priceJPYC: string;
   shopName?: string;
+  shopSlug?: string;
 }
 
-export function ProductCard({ id, title, description, imageUrl, priceJPYC, shopName }: ProductCardProps) {
+export function ProductCard({ id, title, description, imageUrl, priceJPYC, shopName, shopSlug }: ProductCardProps) {
+  const router = useRouter();
+
   return (
-    <Link href={`/products/${id}`} className="group">
+    <div
+      className="group cursor-pointer"
+      onClick={() => router.push(`/products/${id}`)}
+    >
       <Card className="flex flex-col h-full overflow-hidden border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200">
         {imageUrl && (
           <div className="aspect-[4/3] overflow-hidden">
@@ -26,7 +35,19 @@ export function ProductCard({ id, title, description, imageUrl, priceJPYC, shopN
         <div className="flex flex-col flex-1 bg-[#F1F3F7]">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium leading-snug">{title}</CardTitle>
-            {shopName && <p className="text-xs text-muted-foreground">{shopName}</p>}
+            {shopName && (
+              shopSlug ? (
+                <Link
+                  href={`/shops/${shopSlug}`}
+                  className="text-xs text-muted-foreground hover:text-secondary hover:underline transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {shopName}
+                </Link>
+              ) : (
+                <p className="text-xs text-muted-foreground">{shopName}</p>
+              )
+            )}
           </CardHeader>
           <CardContent className="flex-1 pb-2">
             {description && (
@@ -40,6 +61,6 @@ export function ProductCard({ id, title, description, imageUrl, priceJPYC, shopN
           </CardFooter>
         </div>
       </Card>
-    </Link>
+    </div>
   );
 }

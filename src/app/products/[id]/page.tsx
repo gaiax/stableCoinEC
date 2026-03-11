@@ -4,6 +4,7 @@ import { CheckoutButton } from '@/components/CheckoutButton';
 import { ConnectButton } from '@/components/ConnectButton';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,9 +37,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground mb-1">
+      <Link
+        href={`/shops/${product.shop.slug}`}
+        className="text-xs text-muted-foreground hover:text-secondary hover:underline transition-colors"
+      >
         {product.shop.name}
-      </p>
+      </Link>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold tracking-tight">{product.title}</h1>
         {product.stock <= 0 && (
