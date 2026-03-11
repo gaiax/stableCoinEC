@@ -24,6 +24,7 @@ export default async function ShopSettingsPage() {
       name: true,
       slug: true,
       description: true,
+      logoUrl: true,
       coverImageUrl: true,
       walletAddress: true,
       shippingFee: true,
@@ -45,6 +46,7 @@ export default async function ShopSettingsPage() {
   const initialData = {
     name: shop.name,
     description: shop.description,
+    logoUrl: shop.logoUrl,
     coverImageUrl: shop.coverImageUrl,
     walletAddress: shop.walletAddress,
     shippingFee: shop.shippingFee?.toString() ?? null,

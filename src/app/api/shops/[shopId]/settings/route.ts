@@ -79,7 +79,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, description, coverImageUrl, walletAddress, shippingFee, freeShippingThreshold } = body;
+    const { name, description, logoUrl, coverImageUrl, walletAddress, shippingFee, freeShippingThreshold } = body;
 
     const updateData: Record<string, unknown> = {};
 
@@ -92,6 +92,10 @@ export async function PATCH(
 
     if (description !== undefined) {
       updateData.description = description || null;
+    }
+
+    if (logoUrl !== undefined) {
+      updateData.logoUrl = logoUrl || null;
     }
 
     if (coverImageUrl !== undefined) {
