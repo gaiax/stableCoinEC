@@ -22,10 +22,10 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-10">
         <div>
-          <h2 className="text-3xl font-bold">{shop.name}</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-2xl font-bold tracking-tight">{shop.name}</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             オーナー: {shop.owner.name || shop.owner.email}
           </p>
         </div>
@@ -33,11 +33,11 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
       </div>
 
       {shop.products.length === 0 ? (
-        <p className="text-muted-foreground text-center py-12">
+        <p className="text-muted-foreground text-center py-16 text-sm">
           まだ商品がありません
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
           {shop.products.map((product) => (
             <ProductCard
               key={product.id}

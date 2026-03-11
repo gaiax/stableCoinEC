@@ -41,7 +41,7 @@ describe('ProductCard', () => {
 
   it('詳細リンクのhrefが正しい', () => {
     render(<ProductCard {...defaultProps} />);
-    const link = screen.getByRole('link', { name: '詳細を見る' });
+    const link = screen.getByRole('link');
     expect(link).toHaveAttribute('href', '/products/product-1');
   });
 

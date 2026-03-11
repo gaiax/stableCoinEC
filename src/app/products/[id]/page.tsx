@@ -26,33 +26,39 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-6">
         <ConnectButton />
       </div>
 
       {allImages.length > 0 && (
-        <ImageCarousel images={allImages} alt={product.title} />
+        <div className="mb-6">
+          <ImageCarousel images={allImages} alt={product.title} />
+        </div>
       )}
 
-      <div className="flex items-center gap-3 mb-2">
-        <h1 className="text-3xl font-bold">{product.title}</h1>
+      <p className="text-xs text-muted-foreground mb-1">
+        {product.shop.name}
+      </p>
+      <div className="flex items-center gap-3 mb-4">
+        <h1 className="text-2xl font-bold tracking-tight">{product.title}</h1>
         {product.stock <= 0 && (
-          <Badge variant="destructive" className="text-sm">SOLD OUT</Badge>
+          <Badge variant="destructive" className="text-xs">SOLD OUT</Badge>
         )}
       </div>
-      <p className="text-muted-foreground mb-4">by {product.shop.name}</p>
 
-      <div className="flex items-center gap-4 mb-6">
-        <Badge variant="secondary" className="text-xl font-bold inline-block">
+      <div className="flex items-baseline gap-3 mb-6">
+        <span className="text-2xl font-bold text-foreground">
           {product.priceJPYC.toString()} JPYC
-        </Badge>
-        <span className="text-sm text-muted-foreground">
+        </span>
+        <span className="text-xs text-muted-foreground">
           残り {product.stock} 点
         </span>
       </div>
 
       {product.description && (
-        <div className="text-gray-700 mb-6 whitespace-pre-wrap">{product.description}</div>
+        <div className="text-sm text-muted-foreground mb-8 whitespace-pre-wrap leading-relaxed">
+          {product.description}
+        </div>
       )}
 
       {product.onChainProductId !== null ? (
