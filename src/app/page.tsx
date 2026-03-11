@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductCarousel } from '@/components/ProductCarousel';
 import { ConnectButton } from '@/components/ConnectButton';
 
 export const dynamic = 'force-dynamic';
@@ -37,23 +37,17 @@ export default async function HomePage() {
           まだ商品がありません
         </p>
       ) : (
-        <div className="overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
-          <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
-            {products.map((product) => (
-              <div key={product.id} className="w-48 md:w-56 flex-shrink-0">
-                <ProductCard
-                  id={product.id}
-                  title={product.title}
-                  description={product.description}
-                  imageUrl={product.imageUrl}
-                  priceJPYC={product.priceJPYC.toString()}
-                  shopName={product.shop.name}
-                  shopSlug={product.shop.slug}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+        <ProductCarousel
+          products={products.map((p) => ({
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            imageUrl: p.imageUrl,
+            priceJPYC: p.priceJPYC.toString(),
+            shopName: p.shop.name,
+            shopSlug: p.shop.slug,
+          }))}
+        />
       )}
 
       {/* ショップ一覧 */}
