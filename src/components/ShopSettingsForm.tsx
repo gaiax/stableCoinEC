@@ -12,6 +12,7 @@ interface ShopSettingsFormProps {
   initialData: {
     name: string;
     description: string | null;
+    coverImageUrl: string | null;
     walletAddress: string | null;
     shippingFee: string | null;
     freeShippingThreshold: string | null;
@@ -21,6 +22,8 @@ interface ShopSettingsFormProps {
 export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps) {
   const [name, setName] = useState(initialData.name);
   const [description, setDescription] = useState(initialData.description ?? '');
+  const [coverImageUrl, setCoverImageUrl] = useState(initialData.coverImageUrl ?? '');
+  const [isUploading, setIsUploading] = useState(false);
   const [walletAddress, setWalletAddress] = useState(initialData.walletAddress ?? '');
   const [shippingFee, setShippingFee] = useState(initialData.shippingFee ?? '');
   const [freeShippingThreshold, setFreeShippingThreshold] = useState(
@@ -29,6 +32,29 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'アップロードに失敗しました');
+      setCoverImageUrl(data.imageUrl);
+      setMessage('カバー画像をアップロードしました。「設定を保存する」を押して反映してください');
+      setIsError(false);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'アップロードに失敗しました');
+      setIsError(true);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +69,7 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
+          coverImageUrl: coverImageUrl || null,
           walletAddress: walletAddress.trim() || null,
           shippingFee: shippingFee || null,
           freeShippingThreshold: freeShippingThreshold || null,
@@ -91,6 +118,42 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
               rows={3}
               placeholder="ショップの説明を入力してください"
             />
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-3">カバー画像</h3>
+            {coverImageUrl && (
+              <div className="mb-3">
+                <img
+                  src={coverImageUrl}
+                  alt="カバー画像プレビュー"
+                  className="w-full h-40 object-cover rounded-md"
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <Input
+                id="coverImage"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleCoverUpload}
+                disabled={isUploading}
+                className="flex-1"
+              />
+              {coverImageUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCoverImageUrl('')}
+                >
+                  削除
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isUploading ? 'アップロード中...' : 'JPEG、PNG、WebP形式（5MB以下）。ショップページの上部に表示されます'}
+            </p>
           </div>
 
           <div className="border-t pt-4">

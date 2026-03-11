@@ -17,8 +17,8 @@ test.describe('商品閲覧', () => {
   test('商品カードクリック → 商品詳細ページへ遷移', async ({ page }) => {
     await page.goto('/');
 
-    // 「詳細を見る」リンクをクリック
-    await page.locator('a', { hasText: '詳細を見る' }).first().click();
+    // 商品カードをクリック
+    await page.locator('text=テスト商品A').first().click();
 
     // 商品詳細ページに遷移
     await page.waitForURL(/\/products\/.+/);
@@ -30,8 +30,8 @@ test.describe('商品閲覧', () => {
   test('商品詳細ページに価格・説明・分配情報が表示される', async ({ page }) => {
     await page.goto('/');
 
-    // 商品詳細に遷移
-    await page.locator('a', { hasText: '詳細を見る' }).first().click();
+    // 商品カードをクリックして詳細に遷移
+    await page.locator('text=テスト商品A').first().click();
     await page.waitForURL(/\/products\/.+/);
 
     // 商品名
