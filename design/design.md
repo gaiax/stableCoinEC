@@ -219,29 +219,35 @@ model Order {
 
 ## 5. スマートコントラクト設計 (Solidity)
 
-JPYC (ERC20) に特化した決済・分配コントラクト。変更なし（初期実装のまま）。
+JPYC (ERC20) に特化した決済・分配コントラクト。OpenZeppelin UUPS Proxyパターンを採用し、デプロイ後のアップグレードが可能。
+
+### 5.1 アーキテクチャ
+
+- **パターン:** UUPS (Universal Upgradeable Proxy Standard)
+- **Solidity:** 0.8.24
+- **継承:** Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable
+- **デプロイ:** `upgrades.deployProxy()` でProxy経由デプロイ
+- **アップグレード:** `upgrades.upgradeProxy()` でロジック差し替え（状態は保持）
+
+### 5.2 コントラクト仕様
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
-    IERC20 public immutable jpycToken;
+contract JpycSplitMarketplace is
+    Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable
+{
+    IERC20 public jpycToken;
 
-    struct Split {
-        address recipient;
-        uint256 basisPoints; // 100% = 10000
-    }
-
-    struct Product {
-        uint256 price;
-        bool isActive;
-        Split[] splits;
-    }
+    struct Split { address recipient; uint256 basisPoints; }
+    struct Product { uint256 price; bool isActive; Split[] splits; }
 
     mapping(uint256 => Product) public products;
     uint256 public nextProductId;
@@ -250,22 +256,48 @@ contract JpycSplitMarketplace is Ownable, ReentrancyGuard {
     event Purchase(uint256 indexed productId, address indexed buyer, uint256 price);
     event RevenueDistributed(uint256 indexed productId, address indexed recipient, uint256 amount);
 
-    constructor(address _jpycTokenAddress) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() { _disableInitializers(); }
+
+    function initialize(address _jpycTokenAddress) public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
         jpycToken = IERC20(_jpycTokenAddress);
     }
 
-    function registerProduct(
-        uint256 _price,
-        address[] calldata _recipients,
-        uint256[] calldata _basisPoints
-    ) external onlyOwner returns (uint256) { ... }
+    function registerProduct(...) external onlyOwner returns (uint256) { ... }
+    function buy(uint256 _productId) external virtual nonReentrant { ... }
+    function getProduct(uint256 _productId) external view returns (...) { ... }
 
-    function buy(uint256 _productId) external nonReentrant { ... }
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    function getProduct(uint256 _productId) external view returns (
-        uint256 price, bool isActive, address[] memory recipients, uint256[] memory basisPoints
-    ) { ... }
+    uint256[50] private __gap;
 }
+```
+
+### 5.3 UUPS Proxy の要点
+
+| 項目 | 説明 |
+|------|------|
+| constructor | `_disableInitializers()` で実装コントラクトの直接初期化を防止 |
+| initialize | Proxy経由の初期化関数。`initializer` modifierで1回のみ実行 |
+| _authorizeUpgrade | `onlyOwner` でオーナーのみアップグレード可能 |
+| __gap[50] | 将来のストレージ変数追加に備えたスロット予約 |
+| jpycToken | `immutable` ではなく通常のstate変数（Proxy互換のため） |
+| buy() | `virtual` で将来のV2オーバーライドに対応 |
+
+### 5.4 デプロイ・アップグレード
+
+```bash
+# デプロイ（Proxy + 実装コントラクト）
+cd contracts && npx hardhat run scripts/deploy.ts --network amoy
+
+# ローカルデプロイ
+cd contracts && npx hardhat run scripts/deploy-local.ts --network localhost
+
+# アップグレード（PROXY_ADDRESS環境変数が必要）
+PROXY_ADDRESS=0x... npx hardhat run scripts/upgrade.ts --network amoy
 ```
 
 ## 6. API仕様
@@ -471,6 +503,74 @@ stableCoinEC/
 └── package.json
 ```
 
-## 10. 実装ルール
+## 10. UIデザイン仕様
+
+### 10.1 カラースキーム
+
+gaiax.co.jp のブランドカラーに準拠。
+
+| 用途 | カラー | HSL |
+|------|--------|-----|
+| Primary（ネイビー） | #002554 | 211 100% 16% |
+| Primary Foreground | #ffffff | 0 0% 100% |
+| Secondary（ティール） | #449a96 | 177 39% 44% |
+| Secondary Foreground | #ffffff | 0 0% 100% |
+| Background | #ffffff | 0 0% 100% |
+| Foreground | #333333 | 0 0% 20% |
+| Muted | — | 210 20% 96% |
+| Muted Foreground | — | 210 5% 46% |
+| Accent | — | 177 30% 93% |
+| Border | — | 210 15% 90% |
+
+CSS変数は `src/app/globals.css` の `:root` で定義（HSL形式）。
+
+### 10.2 フォント
+
+- **Noto Sans JP** (Google Fonts)
+- ウェイト: 400 (Regular), 500 (Medium), 700 (Bold)
+- `next/font/google` で最適化読み込み
+
+### 10.3 ヘッダー
+
+gaiax.co.jp のヘッダーデザインに準拠。
+
+- **背景:** ネイビー (`bg-primary` = #002554)
+- **高さ:** 64px (`h-16`)
+- **位置:** Sticky (`sticky top-0 z-50`)
+- **ロゴ:** 白テキスト、太字、`text-xl`
+- **ナビリンク:** 白80%透過 (`text-white/80`)、ホバーで白100%
+- **新規登録ボタン:** ティール背景 (`bg-secondary`) + 白テキスト（アクセント）
+- **レイアウト:** ロゴ左寄せ、ナビ右寄せ (`flex justify-between`)
+
+### 10.4 フッター
+
+gaiax.co.jp のフッターデザインに準拠。
+
+- **背景:** ネイビー (`bg-primary` = #002554)
+- **テキスト:** 白 (`text-white`)、リンクは白70%透過でホバー時に白100%
+- **レイアウト:** 3カラムグリッド (`grid-cols-1 md:grid-cols-3`)
+  - カラム1: サイト名 + 説明文
+  - カラム2: サイトリンク（商品一覧、ログイン、新規登録）
+  - カラム3: ポリシーリンク（利用規約、プライバシーポリシー）
+- **コピーライト:** 区切り線 (`border-white/20`) の下に中央配置
+- **マージン:** コンテンツとの間に `mt-20`
+
+### 10.5 商品カード
+
+- カード全体がリンク (`Link` でラップ)
+- 画像: 4:3アスペクト比 (`aspect-[4/3]`)、`object-cover`
+- **テキスト部分の背景:** 薄いグレー (`#F1F3F7`)、`flex-1` でカード下部まで埋める
+- ホバーエフェクト: スケールアップ + シャドウ (`hover:scale-[1.02] hover:shadow-lg`)
+- グリッド: 2列 → 3列(md) → 4列(lg)、gap-4〜5
+
+### 10.6 商品詳細ページ
+
+- 最大幅 `max-w-2xl`、中央寄せ
+- 画像カルーセル (`ImageCarousel`)
+- ショップ名を小テキストで商品名の上に表示
+- 価格はプレーンテキスト（太字 `text-2xl`）+ 残り在庫数
+- SOLD OUT時は `Badge variant="destructive"`
+
+## 11. 実装ルール
 
 別ドキュメント `rule.md` に従うこと。
