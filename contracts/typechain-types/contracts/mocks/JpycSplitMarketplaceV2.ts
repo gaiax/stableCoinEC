@@ -26,22 +26,19 @@ import type {
 export interface JpycSplitMarketplaceV2Interface extends Interface {
   getFunction(
     nameOrSignature:
-      | "PRICE_MULTIPLIER"
       | "UPGRADE_INTERFACE_VERSION"
       | "buy"
-      | "getActualPrice"
       | "getProduct"
       | "initialize"
       | "jpycToken"
-      | "migrateProductPrice"
       | "nextProductId"
       | "owner"
-      | "priceMigrated"
       | "products"
       | "proxiableUUID"
       | "registerProduct"
       | "renounceOwnership"
       | "transferOwnership"
+      | "updateProduct"
       | "upgradeToAndCall"
       | "version"
   ): FunctionFragment;
@@ -50,6 +47,7 @@ export interface JpycSplitMarketplaceV2Interface extends Interface {
     nameOrSignatureOrTopic:
       | "Initialized"
       | "OwnershipTransferred"
+      | "ProductPriceUpdated"
       | "ProductRegistered"
       | "Purchase"
       | "RevenueDistributed"
@@ -57,18 +55,10 @@ export interface JpycSplitMarketplaceV2Interface extends Interface {
   ): EventFragment;
 
   encodeFunctionData(
-    functionFragment: "PRICE_MULTIPLIER",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "UPGRADE_INTERFACE_VERSION",
     values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "buy", values: [BigNumberish]): string;
-  encodeFunctionData(
-    functionFragment: "getActualPrice",
-    values: [BigNumberish]
-  ): string;
   encodeFunctionData(
     functionFragment: "getProduct",
     values: [BigNumberish]
@@ -79,18 +69,10 @@ export interface JpycSplitMarketplaceV2Interface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "jpycToken", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "migrateProductPrice",
-    values: [BigNumberish]
-  ): string;
-  encodeFunctionData(
     functionFragment: "nextProductId",
     values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "priceMigrated",
-    values: [BigNumberish]
-  ): string;
   encodeFunctionData(
     functionFragment: "products",
     values: [BigNumberish]
@@ -112,40 +94,28 @@ export interface JpycSplitMarketplaceV2Interface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "updateProduct",
+    values: [BigNumberish, BigNumberish, BigNumberish[]]
+  ): string;
+  encodeFunctionData(
     functionFragment: "upgradeToAndCall",
     values: [AddressLike, BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "version", values?: undefined): string;
 
   decodeFunctionResult(
-    functionFragment: "PRICE_MULTIPLIER",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "UPGRADE_INTERFACE_VERSION",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "buy", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "getActualPrice",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "getProduct", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "jpycToken", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "migrateProductPrice",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "nextProductId",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "priceMigrated",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "products", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "proxiableUUID",
@@ -161,6 +131,10 @@ export interface JpycSplitMarketplaceV2Interface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "updateProduct",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -188,6 +162,28 @@ export namespace OwnershipTransferredEvent {
   export interface OutputObject {
     previousOwner: string;
     newOwner: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace ProductPriceUpdatedEvent {
+  export type InputTuple = [
+    productId: BigNumberish,
+    oldPrice: BigNumberish,
+    newPrice: BigNumberish
+  ];
+  export type OutputTuple = [
+    productId: bigint,
+    oldPrice: bigint,
+    newPrice: bigint
+  ];
+  export interface OutputObject {
+    productId: bigint;
+    oldPrice: bigint;
+    newPrice: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -303,17 +299,9 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
-  PRICE_MULTIPLIER: TypedContractMethod<[], [bigint], "view">;
-
   UPGRADE_INTERFACE_VERSION: TypedContractMethod<[], [string], "view">;
 
   buy: TypedContractMethod<[_productId: BigNumberish], [void], "nonpayable">;
-
-  getActualPrice: TypedContractMethod<
-    [_productId: BigNumberish],
-    [bigint],
-    "view"
-  >;
 
   getProduct: TypedContractMethod<
     [_productId: BigNumberish],
@@ -322,7 +310,7 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
         price: bigint;
         isActive: boolean;
         recipients: string[];
-        basisPoints: bigint[];
+        amounts: bigint[];
       }
     ],
     "view"
@@ -336,17 +324,9 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
 
   jpycToken: TypedContractMethod<[], [string], "view">;
 
-  migrateProductPrice: TypedContractMethod<
-    [_productId: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
-
   nextProductId: TypedContractMethod<[], [bigint], "view">;
 
   owner: TypedContractMethod<[], [string], "view">;
-
-  priceMigrated: TypedContractMethod<[arg0: BigNumberish], [boolean], "view">;
 
   products: TypedContractMethod<
     [arg0: BigNumberish],
@@ -360,7 +340,7 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
     [
       _price: BigNumberish,
       _recipients: AddressLike[],
-      _basisPoints: BigNumberish[]
+      _amounts: BigNumberish[]
     ],
     [bigint],
     "nonpayable"
@@ -370,6 +350,16 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
 
   transferOwnership: TypedContractMethod<
     [newOwner: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  updateProduct: TypedContractMethod<
+    [
+      _productId: BigNumberish,
+      _newPrice: BigNumberish,
+      _newAmounts: BigNumberish[]
+    ],
     [void],
     "nonpayable"
   >;
@@ -387,17 +377,11 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
   ): T;
 
   getFunction(
-    nameOrSignature: "PRICE_MULTIPLIER"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
     nameOrSignature: "UPGRADE_INTERFACE_VERSION"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "buy"
   ): TypedContractMethod<[_productId: BigNumberish], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "getActualPrice"
-  ): TypedContractMethod<[_productId: BigNumberish], [bigint], "view">;
   getFunction(
     nameOrSignature: "getProduct"
   ): TypedContractMethod<
@@ -407,7 +391,7 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
         price: bigint;
         isActive: boolean;
         recipients: string[];
-        basisPoints: bigint[];
+        amounts: bigint[];
       }
     ],
     "view"
@@ -423,17 +407,11 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
     nameOrSignature: "jpycToken"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
-    nameOrSignature: "migrateProductPrice"
-  ): TypedContractMethod<[_productId: BigNumberish], [void], "nonpayable">;
-  getFunction(
     nameOrSignature: "nextProductId"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "priceMigrated"
-  ): TypedContractMethod<[arg0: BigNumberish], [boolean], "view">;
   getFunction(
     nameOrSignature: "products"
   ): TypedContractMethod<
@@ -450,7 +428,7 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
     [
       _price: BigNumberish,
       _recipients: AddressLike[],
-      _basisPoints: BigNumberish[]
+      _amounts: BigNumberish[]
     ],
     [bigint],
     "nonpayable"
@@ -461,6 +439,17 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "updateProduct"
+  ): TypedContractMethod<
+    [
+      _productId: BigNumberish,
+      _newPrice: BigNumberish,
+      _newAmounts: BigNumberish[]
+    ],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "upgradeToAndCall"
   ): TypedContractMethod<
@@ -485,6 +474,13 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
     OwnershipTransferredEvent.InputTuple,
     OwnershipTransferredEvent.OutputTuple,
     OwnershipTransferredEvent.OutputObject
+  >;
+  getEvent(
+    key: "ProductPriceUpdated"
+  ): TypedContractEvent<
+    ProductPriceUpdatedEvent.InputTuple,
+    ProductPriceUpdatedEvent.OutputTuple,
+    ProductPriceUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "ProductRegistered"
@@ -536,6 +532,17 @@ export interface JpycSplitMarketplaceV2 extends BaseContract {
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
       OwnershipTransferredEvent.OutputObject
+    >;
+
+    "ProductPriceUpdated(uint256,uint256,uint256)": TypedContractEvent<
+      ProductPriceUpdatedEvent.InputTuple,
+      ProductPriceUpdatedEvent.OutputTuple,
+      ProductPriceUpdatedEvent.OutputObject
+    >;
+    ProductPriceUpdated: TypedContractEvent<
+      ProductPriceUpdatedEvent.InputTuple,
+      ProductPriceUpdatedEvent.OutputTuple,
+      ProductPriceUpdatedEvent.OutputObject
     >;
 
     "ProductRegistered(uint256,uint256)": TypedContractEvent<

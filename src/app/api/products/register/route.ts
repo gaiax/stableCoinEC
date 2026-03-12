@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminWalletClient, getPublicClient } from '@/lib/viem-admin';
 import { prisma } from '@/lib/prisma';
-import { parseEther, decodeEventLog } from 'viem';
+import { parseEther, decodeEventLog, getAddress } from 'viem';
 
 const REGISTER_ABI = [
   {
@@ -11,7 +11,7 @@ const REGISTER_ABI = [
     inputs: [
       { name: '_price', type: 'uint256' },
       { name: '_recipients', type: 'address[]' },
-      { name: '_basisPoints', type: 'uint256[]' },
+      { name: '_amounts', type: 'uint256[]' },
     ],
     outputs: [{ name: '', type: 'uint256' }],
   },
@@ -39,6 +39,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // 分配先アドレスのバリデーション
+    for (const s of splits) {
+      if (!s.recipientAddress || !s.recipientAddress.startsWith('0x')) {
+        return NextResponse.json({ error: '受取アドレスが入力されていません。ウォレットアドレスを設定してください。' }, { status: 400 });
+      }
+    }
+
     // 特商法の必須項目チェック
     const shop = await prisma.shop.findUnique({
       where: { id: shopId },
@@ -61,13 +68,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalPercentage = splits.reduce(
-      (sum: number, s: { percentage: number }) => sum + s.percentage,
+    // 分配金額の合計チェック
+    const totalSplitAmount = splits.reduce(
+      (sum: number, s: { amount: string }) => sum + parseFloat(s.amount),
       0
     );
-    if (totalPercentage !== 10000) {
+    if (Math.abs(totalSplitAmount - parseFloat(priceJPYC)) > 0.01) {
       return NextResponse.json(
-        { error: 'Split percentages must total 10000 basis points' },
+        { error: '分配金額の合計が商品価格と一致しません' },
         { status: 400 }
       );
     }
@@ -82,15 +90,15 @@ export async function POST(request: NextRequest) {
 
     const priceInWei = parseEther(priceJPYC.toString());
     const recipients = splits.map(
-      (s: { recipientAddress: string }) => s.recipientAddress as `0x${string}`
+      (s: { recipientAddress: string }) => getAddress(s.recipientAddress)
     );
-    const basisPoints = splits.map((s: { percentage: number }) => BigInt(s.percentage));
+    const amounts = splits.map((s: { amount: string }) => parseEther(s.amount.toString()));
 
     const txHash = await walletClient.writeContract({
       address: contractAddress,
       abi: REGISTER_ABI,
       functionName: 'registerProduct',
-      args: [priceInWei, recipients, basisPoints],
+      args: [priceInWei, recipients, amounts],
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -117,6 +125,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // DB用のpercentage(basis points)を金額から計算
+    const price = parseFloat(priceJPYC);
+    const dbSplits = splits.map(
+      (s: { recipientAddress: string; amount: string }, i: number) => {
+        const amt = parseFloat(s.amount);
+        const bp = i === splits.length - 1
+          ? 10000 - splits.slice(0, -1).reduce((sum: number, ss: { amount: string }) =>
+              sum + Math.floor((parseFloat(ss.amount) / price) * 10000), 0)
+          : Math.floor((amt / price) * 10000);
+        return {
+          recipientAddress: s.recipientAddress,
+          percentage: bp,
+        };
+      }
+    );
+
     const product = await prisma.product.create({
       data: {
         shopId,
@@ -129,12 +153,7 @@ export async function POST(request: NextRequest) {
         txHash,
         isPublished: true,
         splits: {
-          create: splits.map(
-            (s: { recipientAddress: string; percentage: number }) => ({
-              recipientAddress: s.recipientAddress,
-              percentage: s.percentage,
-            })
-          ),
+          create: dbSplits,
         },
         images: {
           create: (additionalImageUrls ?? []).map((url: string, index: number) => ({

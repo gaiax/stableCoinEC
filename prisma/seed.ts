@@ -15,7 +15,7 @@ async function main() {
       passwordHash,
       name: 'デモショップオーナー',
       role: 'SELLER',
-      walletAddress: '0x742d35Cc6634C0532925a3b8D4C9E66D2E2D3F6c',
+      walletAddress: '0x742D35Cc6634c0532925A3b8d4c9E66d2E2d3F6c',
     },
   });
 
@@ -64,7 +64,7 @@ async function main() {
         isPublished: true,
         splits: {
           create: [
-            { recipientAddress: '0x742d35Cc6634C0532925a3b8D4C9E66D2E2D3F6c', percentage: 8000 },
+            { recipientAddress: '0x742D35Cc6634c0532925A3b8d4c9E66d2E2d3F6c', percentage: 8000 },
             { recipientAddress: '0x1234567890abcdef1234567890abcdef12345678', percentage: 2000 },
           ],
         },
