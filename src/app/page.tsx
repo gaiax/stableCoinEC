@@ -1,20 +1,47 @@
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { ProductCarousel } from '@/components/ProductCarousel';
 import { ConnectButton } from '@/components/ConnectButton';
+import { ShopPageContent } from '@/components/ShopPageContent';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const shops = await prisma.shop.findMany({
-    include: { _count: { select: { products: { where: { isPublished: true } } } } },
+    include: {
+      _count: { select: { products: { where: { isPublished: true } } } },
+      products: {
+        where: { isPublished: true },
+        orderBy: { createdAt: 'desc' },
+      },
+    },
     orderBy: { createdAt: 'desc' },
   });
 
-  // ショップが1つだけの場合、そのショップページにリダイレクト
+  // ショップが1つだけの場合、ショップページをそのまま表示
   if (shops.length === 1) {
-    redirect(`/shops/${shops[0].slug}`);
+    const shop = shops[0];
+    return (
+      <ShopPageContent
+        shop={{
+          name: shop.name,
+          slug: shop.slug,
+          description: shop.description,
+          coverImageUrl: shop.coverImageUrl,
+          legalEmail: shop.legalEmail,
+          legalPhone: shop.legalPhone,
+          legalBusinessHours: shop.legalBusinessHours,
+          legalBusinessName: shop.legalBusinessName,
+          products: shop.products.map((p) => ({
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            imageUrl: p.imageUrl,
+            priceJPYC: p.priceJPYC.toString(),
+          })),
+        }}
+      />
+    );
   }
 
   const products = await prisma.product.findMany({
