@@ -64,8 +64,8 @@ const validBody = {
   imageUrl: 'https://example.com/img.png',
   priceJPYC: '1000',
   splits: [
-    { recipientAddress: '0x1234567890abcdef1234567890abcdef12345678', percentage: 8000 },
-    { recipientAddress: '0xabcdef1234567890abcdef1234567890abcdef12', percentage: 2000 },
+    { recipientAddress: '0x1234567890abcdef1234567890abcdef12345678', amount: '800' },
+    { recipientAddress: '0xabcdef1234567890abcdef1234567890abcdef12', amount: '200' },
   ],
 };
 
@@ -106,18 +106,18 @@ describe('POST /api/products/register', () => {
     expect(data.error).toBe('Missing required fields');
   });
 
-  it('splits合計が10000でない場合400を返す', async () => {
+  it('分配金額の合計が価格と一致しない場合400を返す', async () => {
     const body = {
       ...validBody,
       splits: [
-        { recipientAddress: '0x1234567890abcdef1234567890abcdef12345678', percentage: 5000 },
-        { recipientAddress: '0xabcdef1234567890abcdef1234567890abcdef12', percentage: 3000 },
+        { recipientAddress: '0x1234567890abcdef1234567890abcdef12345678', amount: '500' },
+        { recipientAddress: '0xabcdef1234567890abcdef1234567890abcdef12', amount: '300' },
       ],
     };
     const res = await POST(createRequest(body, 'test-secret'));
     const data = await res.json();
     expect(res.status).toBe(400);
-    expect(data.error).toBe('Split percentages must total 10000 basis points');
+    expect(data.error).toBe('分配金額の合計が商品価格と一致しません');
   });
 
   it('ショップが見つからない場合404を返す', async () => {

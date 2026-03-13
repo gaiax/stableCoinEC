@@ -110,12 +110,13 @@ describe('ProductRegisterForm', () => {
       }),
     }));
 
-    // basis points に変換されていることを確認 (100% → 10000)
+    // 金額がそのままAPIに送られることを確認
     const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(callBody.splits[0].percentage).toBe(10000);
+    expect(callBody.splits[0].amount).toBe('1000');
+    expect(callBody.splits[0].recipientAddress).toBe('0x1234567890abcdef1234567890abcdef12345678');
   });
 
-  it('140JPYCを130と10に分配するとbasis pointsが正しく計算される', async () => {
+  it('140JPYCを130と10に分配すると正しい金額がAPIに送られる', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ success: true }),
@@ -143,10 +144,8 @@ describe('ProductRegisterForm', () => {
     });
 
     const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    // 130/140 = 9285bp (floor), 10/140 → 10000-9285 = 715bp
-    expect(callBody.splits[0].percentage).toBe(9285);
-    expect(callBody.splits[1].percentage).toBe(715);
-    expect(callBody.splits[0].percentage + callBody.splits[1].percentage).toBe(10000);
+    expect(callBody.splits[0].amount).toBe('130');
+    expect(callBody.splits[1].amount).toBe('10');
   });
 
   it('送信失敗時にエラーメッセージが表示される', async () => {
