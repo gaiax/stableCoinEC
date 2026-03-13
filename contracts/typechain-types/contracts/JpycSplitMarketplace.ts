@@ -38,6 +38,7 @@ export interface JpycSplitMarketplaceInterface extends Interface {
       | "registerProduct"
       | "renounceOwnership"
       | "transferOwnership"
+      | "updateProduct"
       | "upgradeToAndCall"
   ): FunctionFragment;
 
@@ -45,6 +46,7 @@ export interface JpycSplitMarketplaceInterface extends Interface {
     nameOrSignatureOrTopic:
       | "Initialized"
       | "OwnershipTransferred"
+      | "ProductPriceUpdated"
       | "ProductRegistered"
       | "Purchase"
       | "RevenueDistributed"
@@ -91,6 +93,10 @@ export interface JpycSplitMarketplaceInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "updateProduct",
+    values: [BigNumberish, BigNumberish, BigNumberish[]]
+  ): string;
+  encodeFunctionData(
     functionFragment: "upgradeToAndCall",
     values: [AddressLike, BytesLike]
   ): string;
@@ -126,6 +132,10 @@ export interface JpycSplitMarketplaceInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "updateProduct",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "upgradeToAndCall",
     data: BytesLike
   ): Result;
@@ -149,6 +159,28 @@ export namespace OwnershipTransferredEvent {
   export interface OutputObject {
     previousOwner: string;
     newOwner: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace ProductPriceUpdatedEvent {
+  export type InputTuple = [
+    productId: BigNumberish,
+    oldPrice: BigNumberish,
+    newPrice: BigNumberish
+  ];
+  export type OutputTuple = [
+    productId: bigint,
+    oldPrice: bigint,
+    newPrice: bigint
+  ];
+  export interface OutputObject {
+    productId: bigint;
+    oldPrice: bigint;
+    newPrice: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -275,7 +307,7 @@ export interface JpycSplitMarketplace extends BaseContract {
         price: bigint;
         isActive: boolean;
         recipients: string[];
-        basisPoints: bigint[];
+        amounts: bigint[];
       }
     ],
     "view"
@@ -305,7 +337,7 @@ export interface JpycSplitMarketplace extends BaseContract {
     [
       _price: BigNumberish,
       _recipients: AddressLike[],
-      _basisPoints: BigNumberish[]
+      _amounts: BigNumberish[]
     ],
     [bigint],
     "nonpayable"
@@ -315,6 +347,16 @@ export interface JpycSplitMarketplace extends BaseContract {
 
   transferOwnership: TypedContractMethod<
     [newOwner: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  updateProduct: TypedContractMethod<
+    [
+      _productId: BigNumberish,
+      _newPrice: BigNumberish,
+      _newAmounts: BigNumberish[]
+    ],
     [void],
     "nonpayable"
   >;
@@ -344,7 +386,7 @@ export interface JpycSplitMarketplace extends BaseContract {
         price: bigint;
         isActive: boolean;
         recipients: string[];
-        basisPoints: bigint[];
+        amounts: bigint[];
       }
     ],
     "view"
@@ -381,7 +423,7 @@ export interface JpycSplitMarketplace extends BaseContract {
     [
       _price: BigNumberish,
       _recipients: AddressLike[],
-      _basisPoints: BigNumberish[]
+      _amounts: BigNumberish[]
     ],
     [bigint],
     "nonpayable"
@@ -392,6 +434,17 @@ export interface JpycSplitMarketplace extends BaseContract {
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "updateProduct"
+  ): TypedContractMethod<
+    [
+      _productId: BigNumberish,
+      _newPrice: BigNumberish,
+      _newAmounts: BigNumberish[]
+    ],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "upgradeToAndCall"
   ): TypedContractMethod<
@@ -413,6 +466,13 @@ export interface JpycSplitMarketplace extends BaseContract {
     OwnershipTransferredEvent.InputTuple,
     OwnershipTransferredEvent.OutputTuple,
     OwnershipTransferredEvent.OutputObject
+  >;
+  getEvent(
+    key: "ProductPriceUpdated"
+  ): TypedContractEvent<
+    ProductPriceUpdatedEvent.InputTuple,
+    ProductPriceUpdatedEvent.OutputTuple,
+    ProductPriceUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "ProductRegistered"
@@ -464,6 +524,17 @@ export interface JpycSplitMarketplace extends BaseContract {
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
       OwnershipTransferredEvent.OutputObject
+    >;
+
+    "ProductPriceUpdated(uint256,uint256,uint256)": TypedContractEvent<
+      ProductPriceUpdatedEvent.InputTuple,
+      ProductPriceUpdatedEvent.OutputTuple,
+      ProductPriceUpdatedEvent.OutputObject
+    >;
+    ProductPriceUpdated: TypedContractEvent<
+      ProductPriceUpdatedEvent.InputTuple,
+      ProductPriceUpdatedEvent.OutputTuple,
+      ProductPriceUpdatedEvent.OutputObject
     >;
 
     "ProductRegistered(uint256,uint256)": TypedContractEvent<

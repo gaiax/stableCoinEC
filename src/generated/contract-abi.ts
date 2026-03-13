@@ -151,6 +151,31 @@ export const JPYC_SPLIT_MARKETPLACE_ABI = [
         type: "uint256",
       },
       {
+        indexed: false,
+        internalType: "uint256",
+        name: "oldPrice",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newPrice",
+        type: "uint256",
+      },
+    ],
+    name: "ProductPriceUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "productId",
+        type: "uint256",
+      },
+      {
         indexed: true,
         internalType: "address",
         name: "buyer",
@@ -257,7 +282,7 @@ export const JPYC_SPLIT_MARKETPLACE_ABI = [
       },
       {
         internalType: "uint256[]",
-        name: "basisPoints",
+        name: "amounts",
         type: "uint256[]",
       },
     ],
@@ -367,7 +392,7 @@ export const JPYC_SPLIT_MARKETPLACE_ABI = [
       },
       {
         internalType: "uint256[]",
-        name: "_basisPoints",
+        name: "_amounts",
         type: "uint256[]",
       },
     ],
@@ -379,6 +404,29 @@ export const JPYC_SPLIT_MARKETPLACE_ABI = [
         type: "uint256",
       },
     ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    name: "updateProduct",
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_productId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "_newPrice",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256[]",
+        name: "_newAmounts",
+        type: "uint256[]",
+      },
+    ],
+    outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },

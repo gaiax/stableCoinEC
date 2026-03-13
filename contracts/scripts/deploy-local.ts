@@ -10,8 +10,25 @@
  *   npx hardhat run scripts/deploy-local.ts --network localhost
  */
 import { ethers, upgrades } from "hardhat";
+import { PrismaClient } from "@prisma/client";
 
 async function main() {
+  // Hardhat再起動でオンチェーンデータがリセットされるため、DBの古いonChainProductIdをクリア
+  const prisma = new PrismaClient();
+  try {
+    const result = await prisma.product.updateMany({
+      where: { onChainProductId: { not: null } },
+      data: { onChainProductId: null, txHash: null },
+    });
+    if (result.count > 0) {
+      console.log(`🔄 DB: Reset onChainProductId for ${result.count} products`);
+    }
+  } catch {
+    // DB接続失敗は無視（DBなしでもデプロイ可能）
+  } finally {
+    await prisma.$disconnect();
+  }
+
   const [owner, seller, buyer] = await ethers.getSigners();
   console.log("=".repeat(50));
   console.log("Deploying to local Hardhat Node");
@@ -51,7 +68,7 @@ async function main() {
   const tx1 = await marketplace.registerProduct(
     price,
     [seller.address],
-    [10000] // 100%
+    [price] // 全額 seller
   );
   await tx1.wait();
 
@@ -59,13 +76,13 @@ async function main() {
   const tx2 = await marketplace.registerProduct(
     price2,
     [seller.address, owner.address],
-    [7000, 3000] // 70% seller, 30% owner
+    [ethers.parseEther("350"), ethers.parseEther("150")] // 350 seller, 150 owner
   );
   await tx2.wait();
 
   console.log("\n📦 Sample products registered:");
-  console.log("   Product #0: 1,000 JPYC → seller 100%");
-  console.log("   Product #1: 500 JPYC → seller 70% / owner 30%");
+  console.log("   Product #0: 1,000 JPYC → seller 1,000");
+  console.log("   Product #1: 500 JPYC → seller 350 / owner 150");
 
   // 5. .env.local 用の出力
   console.log("\n" + "=".repeat(50));

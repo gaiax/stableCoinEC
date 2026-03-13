@@ -12,6 +12,7 @@ interface ShopSettingsFormProps {
   initialData: {
     name: string;
     description: string | null;
+    logoUrl: string | null;
     coverImageUrl: string | null;
     walletAddress: string | null;
     shippingFee: string | null;
@@ -22,6 +23,7 @@ interface ShopSettingsFormProps {
 export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps) {
   const [name, setName] = useState(initialData.name);
   const [description, setDescription] = useState(initialData.description ?? '');
+  const [logoUrl, setLogoUrl] = useState(initialData.logoUrl ?? '');
   const [coverImageUrl, setCoverImageUrl] = useState(initialData.coverImageUrl ?? '');
   const [isUploading, setIsUploading] = useState(false);
   const [walletAddress, setWalletAddress] = useState(initialData.walletAddress ?? '');
@@ -32,6 +34,33 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (url: string) => void,
+    label: string
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'アップロードに失敗しました');
+      setter(data.imageUrl);
+      setMessage(`${label}をアップロードしました。「設定を保存する」を押して反映してください`);
+      setIsError(false);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'アップロードに失敗しました');
+      setIsError(true);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -69,6 +98,7 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
+          logoUrl: logoUrl || null,
           coverImageUrl: coverImageUrl || null,
           walletAddress: walletAddress.trim() || null,
           shippingFee: shippingFee || null,
@@ -118,6 +148,48 @@ export function ShopSettingsForm({ shopId, initialData }: ShopSettingsFormProps)
               rows={3}
               placeholder="ショップの説明を入力してください"
             />
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-3">アイコン画像</h3>
+            <div className="flex items-center gap-4 mb-3">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="アイコンプレビュー"
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-xl font-bold text-muted-foreground">
+                  {name.charAt(0) || '?'}
+                </div>
+              )}
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="logoImage"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => handleImageUpload(e, setLogoUrl, 'アイコン画像')}
+                    disabled={isUploading}
+                    className="flex-1"
+                  />
+                  {logoUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLogoUrl('')}
+                    >
+                      削除
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isUploading ? 'アップロード中...' : 'JPEG、PNG、WebP形式（5MB以下）。ショップ一覧に丸型で表示されます'}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="border-t pt-4">

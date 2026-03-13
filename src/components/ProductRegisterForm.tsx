@@ -9,8 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface SplitInput {
   recipientAddress: string;
-  percentage: number; // パーセント (0-100) — UI用
-  amount: string;     // 金額表示 — UI用
+  amount: string;     // 金額 (JPYC) — 主入力
 }
 
 interface ProductRegisterFormProps {
@@ -32,6 +31,30 @@ async function uploadFile(file: File): Promise<string> {
   return data.imageUrl;
 }
 
+/**
+ * 金額からbasis pointsを計算する。
+ * 最後の受取人に端数を寄せて合計10000を保証する。
+ */
+function amountsToBasisPoints(amounts: number[], totalPrice: number): number[] {
+  if (amounts.length === 0 || totalPrice <= 0) return [];
+
+  const basisPoints: number[] = [];
+  let usedBp = 0;
+
+  for (let i = 0; i < amounts.length; i++) {
+    if (i === amounts.length - 1) {
+      // 最後の受取人に残りを割り当て
+      basisPoints.push(10000 - usedBp);
+    } else {
+      const bp = Math.floor((amounts[i] / totalPrice) * 10000);
+      basisPoints.push(bp);
+      usedBp += bp;
+    }
+  }
+
+  return basisPoints;
+}
+
 export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSuccess }: ProductRegisterFormProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -42,7 +65,7 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
   const [priceJPYC, setPriceJPYC] = useState('');
   const [stock, setStock] = useState('');
   const [splits, setSplits] = useState<SplitInput[]>([
-    { recipientAddress: shopWalletAddress ?? '', percentage: 100, amount: '' },
+    { recipientAddress: shopWalletAddress ?? '', amount: '' },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,7 +74,9 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
   const mainImageRef = useRef<HTMLInputElement>(null);
   const additionalImageRef = useRef<HTMLInputElement>(null);
 
-  const totalPercentage = splits.reduce((sum, s) => sum + s.percentage, 0);
+  const price = parseFloat(priceJPYC) || 0;
+  const totalAmount = splits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+  const isAmountValid = price > 0 && Math.abs(totalAmount - price) < 0.01;
 
   const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,15 +110,8 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
     setAdditionalPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const price = parseFloat(priceJPYC) || 0;
-
-  const recalcAmount = (pct: number) => {
-    if (price <= 0) return '';
-    return Math.round(price * pct / 100).toString();
-  };
-
   const addSplit = () => {
-    setSplits([...splits, { recipientAddress: '', percentage: 0, amount: '' }]);
+    setSplits([...splits, { recipientAddress: '', amount: '' }]);
   };
 
   const removeSplit = (index: number) => {
@@ -106,45 +124,25 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
     setSplits(newSplits);
   };
 
-  const updateSplitPercentage = (index: number, value: number) => {
-    const newSplits = [...splits];
-    newSplits[index] = {
-      ...newSplits[index],
-      percentage: value,
-      amount: recalcAmount(value),
-    };
-    setSplits(newSplits);
-  };
-
   const updateSplitAmount = (index: number, value: string) => {
     const newSplits = [...splits];
-    const amt = parseFloat(value) || 0;
-    const pct = price > 0 ? parseFloat((amt / price * 100).toFixed(2)) : 0;
-    newSplits[index] = {
-      ...newSplits[index],
-      percentage: pct,
-      amount: value,
-    };
+    newSplits[index] = { ...newSplits[index], amount: value };
     setSplits(newSplits);
   };
 
+  // 受取人が1人のとき、価格変更で自動的に金額をセット
   const handlePriceChange = (newPrice: string) => {
     setPriceJPYC(newPrice);
-    const p = parseFloat(newPrice) || 0;
-    if (p > 0) {
-      setSplits(splits.map(s => ({
-        ...s,
-        amount: Math.round(p * s.percentage / 100).toString(),
-      })));
-    } else {
-      setSplits(splits.map(s => ({ ...s, amount: '' })));
+    if (splits.length === 1) {
+      setSplits([{ ...splits[0], amount: newPrice }]);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (Math.abs(totalPercentage - 100) > 0.01) {
-      setError('分配比率の合計が100%になっていません');
+
+    if (!isAmountValid) {
+      setError(`分配金額の合計が価格と一致しません（合計: ${totalAmount} / 価格: ${price}）`);
       return;
     }
 
@@ -165,10 +163,10 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
         additionalImageUrls.push(url);
       }
 
-      // 3. % → basis points に変換してAPI送信
+      // 3. 金額ベースで分配情報を送信
       const apiSplits = splits.map(s => ({
         recipientAddress: s.recipientAddress,
-        percentage: Math.round(s.percentage * 100),
+        amount: s.amount,
       }));
 
       // 4. 商品登録
@@ -213,6 +211,10 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
       </Card>
     );
   }
+
+  // basis points のプレビュー計算
+  const amounts = splits.map(s => parseFloat(s.amount) || 0);
+  const bpPreview = price > 0 && isAmountValid ? amountsToBasisPoints(amounts, price) : null;
 
   return (
     <Card>
@@ -314,16 +316,20 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
           </div>
 
           <div>
-            <Label>売上分配設定 (合計: {totalPercentage}%)</Label>
+            <Label>売上分配設定</Label>
 
-            {Math.abs(totalPercentage - 100) > 0.01 ? (
-              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-                分配比率の合計が100%になっていません（現在: {totalPercentage}%）
-              </div>
-            ) : (
-              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700 flex items-center gap-1">
-                <span>&#10003;</span> 合計 100%
-              </div>
+            {price > 0 && (
+              <>
+                {isAmountValid ? (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700 flex items-center gap-1">
+                    <span>&#10003;</span> 合計 {totalAmount} JPYC = 価格と一致
+                  </div>
+                ) : (
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                    分配金額の合計が価格と一致しません（合計: {totalAmount} JPYC / 価格: {price} JPYC）
+                  </div>
+                )}
+              </>
             )}
 
             {splits.map((split, index) => (
@@ -336,18 +342,6 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
                     onChange={(e) => updateSplitAddress(index, e.target.value)}
                   />
                 </div>
-                <div className="w-28">
-                  {index === 0 && <span className="text-xs text-muted-foreground">割合 (%)</span>}
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    placeholder="% (例: 50)"
-                    value={split.percentage}
-                    onChange={(e) => updateSplitPercentage(index, parseFloat(e.target.value) || 0)}
-                  />
-                </div>
                 <div className="w-32">
                   {index === 0 && <span className="text-xs text-muted-foreground">金額 (JPYC)</span>}
                   <Input
@@ -356,8 +350,13 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
                     placeholder="金額"
                     value={split.amount}
                     onChange={(e) => updateSplitAmount(index, e.target.value)}
-                    disabled={price <= 0}
                   />
+                </div>
+                <div className="w-20 text-right">
+                  {index === 0 && <span className="text-xs text-muted-foreground block">割合</span>}
+                  <span className="text-sm text-muted-foreground leading-10">
+                    {bpPreview ? `${(bpPreview[index] / 100).toFixed(2)}%` : '—'}
+                  </span>
                 </div>
                 {splits.length > 1 && (
                   <Button type="button" variant="destructive" onClick={() => removeSplit(index)}>
@@ -373,7 +372,7 @@ export function ProductRegisterForm({ shopId, apiKey, shopWalletAddress, onSucce
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button type="submit" disabled={isLoading || Math.abs(totalPercentage - 100) > 0.01} className="w-full">
+          <Button type="submit" disabled={isLoading || !isAmountValid} className="w-full">
             {isLoading ? '登録中...' : '商品を登録する'}
           </Button>
         </form>

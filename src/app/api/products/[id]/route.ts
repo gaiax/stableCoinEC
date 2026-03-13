@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseEther } from 'viem';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getAdminWalletClient, getPublicClient } from '@/lib/viem-admin';
+
+const UPDATE_PRODUCT_ABI = [
+  {
+    name: 'updateProduct',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_productId', type: 'uint256' },
+      { name: '_newPrice', type: 'uint256' },
+      { name: '_newAmounts', type: 'uint256[]' },
+    ],
+    outputs: [],
+  },
+] as const;
 
 export async function GET(
   request: NextRequest,
@@ -114,6 +130,47 @@ export async function PATCH(
       if (isNaN(price) || price <= 0) {
         return NextResponse.json({ error: '価格は0より大きい数値を指定してください' }, { status: 400 });
       }
+
+      // オンチェーン価格＋分配金額も更新
+      if (product.onChainProductId !== null) {
+        const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+        if (contractAddress) {
+          // 既存の分配比率(percentage)から新価格での金額を計算
+          const splits = await prisma.splitSetting.findMany({
+            where: { productId: id },
+            orderBy: { id: 'asc' },
+          });
+
+          const newAmounts: bigint[] = [];
+          const newPriceWei = parseEther(priceJPYC.toString());
+          let distributed = BigInt(0);
+          for (let i = 0; i < splits.length; i++) {
+            if (i === splits.length - 1) {
+              newAmounts.push(newPriceWei - distributed);
+            } else {
+              const amt = (newPriceWei * BigInt(splits[i].percentage)) / BigInt(10000);
+              newAmounts.push(amt);
+              distributed += amt;
+            }
+          }
+
+          const walletClient = getAdminWalletClient();
+          const publicClient = getPublicClient();
+
+          const txHash = await walletClient.writeContract({
+            address: contractAddress,
+            abi: UPDATE_PRODUCT_ABI,
+            functionName: 'updateProduct',
+            args: [BigInt(product.onChainProductId.toString()), newPriceWei, newAmounts],
+          });
+
+          const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+          if (receipt.status !== 'success') {
+            return NextResponse.json({ error: 'オンチェーン価格の更新に失敗しました' }, { status: 500 });
+          }
+        }
+      }
+
       updateData.priceJPYC = price;
     }
 

@@ -7,12 +7,10 @@ describe("JpycSplitMarketplace", function () {
     const [owner, recipient1, recipient2, buyer, nonOwner] =
       await ethers.getSigners();
 
-    // Deploy a mock ERC20 token to act as JPYC
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     const jpyc = await MockERC20.deploy("JPY Coin", "JPYC", 18);
     await jpyc.waitForDeployment();
 
-    // Deploy the marketplace via UUPS Proxy
     const JpycSplitMarketplace = await ethers.getContractFactory(
       "JpycSplitMarketplace"
     );
@@ -23,7 +21,6 @@ describe("JpycSplitMarketplace", function () {
     );
     await marketplace.waitForDeployment();
 
-    // Mint JPYC to buyer
     const mintAmount = ethers.parseEther("100000");
     await jpyc.mint(buyer.address, mintAmount);
 
@@ -31,15 +28,17 @@ describe("JpycSplitMarketplace", function () {
   }
 
   describe("registerProduct", function () {
-    it("should register a product with valid splits", async function () {
+    it("should register a product with valid split amounts", async function () {
       const { marketplace, recipient1, recipient2 } =
         await loadFixture(deployFixture);
 
       const price = ethers.parseEther("1000");
+      const amount1 = ethers.parseEther("800");
+      const amount2 = ethers.parseEther("200");
       const tx = await marketplace.registerProduct(
         price,
         [recipient1.address, recipient2.address],
-        [8000, 2000]
+        [amount1, amount2]
       );
 
       await expect(tx)
@@ -53,10 +52,11 @@ describe("JpycSplitMarketplace", function () {
         recipient1.address,
         recipient2.address,
       ]);
-      expect(product.basisPoints.map((bp: bigint) => Number(bp))).to.deep.equal([8000, 2000]);
+      expect(product.amounts[0]).to.equal(amount1);
+      expect(product.amounts[1]).to.equal(amount2);
     });
 
-    it("should reject if total basis points != 10000", async function () {
+    it("should reject if amounts do not sum to price", async function () {
       const { marketplace, recipient1, recipient2 } =
         await loadFixture(deployFixture);
 
@@ -64,19 +64,19 @@ describe("JpycSplitMarketplace", function () {
         marketplace.registerProduct(
           ethers.parseEther("1000"),
           [recipient1.address, recipient2.address],
-          [5000, 4000]
+          [ethers.parseEther("500"), ethers.parseEther("400")]
         )
-      ).to.be.revertedWith("Total must be 100%");
+      ).to.be.revertedWith("Amounts must sum to price");
     });
 
-    it("should reject if recipients and basisPoints length mismatch", async function () {
+    it("should reject if recipients and amounts length mismatch", async function () {
       const { marketplace, recipient1 } = await loadFixture(deployFixture);
 
       await expect(
         marketplace.registerProduct(
           ethers.parseEther("1000"),
           [recipient1.address],
-          [5000, 5000]
+          [ethers.parseEther("500"), ethers.parseEther("500")]
         )
       ).to.be.revertedWith("Length mismatch");
     });
@@ -99,7 +99,7 @@ describe("JpycSplitMarketplace", function () {
           .registerProduct(
             ethers.parseEther("1000"),
             [recipient1.address],
-            [10000]
+            [ethers.parseEther("1000")]
           )
       ).to.be.revertedWithCustomError(marketplace, "OwnableUnauthorizedAccount");
     });
@@ -110,12 +110,12 @@ describe("JpycSplitMarketplace", function () {
       await marketplace.registerProduct(
         ethers.parseEther("1000"),
         [recipient1.address],
-        [10000]
+        [ethers.parseEther("1000")]
       );
       await marketplace.registerProduct(
         ethers.parseEther("2000"),
         [recipient1.address],
-        [10000]
+        [ethers.parseEther("2000")]
       );
 
       const p0 = await marketplace.getProduct(0);
@@ -126,26 +126,138 @@ describe("JpycSplitMarketplace", function () {
     });
   });
 
-  describe("buy", function () {
-    it("should distribute JPYC to recipients correctly", async function () {
-      const { marketplace, jpyc, recipient1, recipient2, buyer } =
-        await loadFixture(deployFixture);
+  describe("updateProduct", function () {
+    it("should update price and amounts", async function () {
+      const { marketplace, recipient1 } = await loadFixture(deployFixture);
+
+      const oldPrice = ethers.parseEther("1000");
+      const newPrice = ethers.parseEther("500");
+      await marketplace.registerProduct(oldPrice, [recipient1.address], [oldPrice]);
+
+      const tx = await marketplace.updateProduct(0, newPrice, [newPrice]);
+      await expect(tx)
+        .to.emit(marketplace, "ProductPriceUpdated")
+        .withArgs(0, oldPrice, newPrice);
+
+      const product = await marketplace.getProduct(0);
+      expect(product.price).to.equal(newPrice);
+      expect(product.amounts[0]).to.equal(newPrice);
+    });
+
+    it("should update price and split amounts for multiple recipients", async function () {
+      const { marketplace, recipient1, recipient2 } = await loadFixture(deployFixture);
+
+      const price = ethers.parseEther("140");
+      await marketplace.registerProduct(
+        price,
+        [recipient1.address, recipient2.address],
+        [ethers.parseEther("130"), ethers.parseEther("10")]
+      );
+
+      const newPrice = ethers.parseEther("200");
+      await marketplace.updateProduct(0, newPrice, [ethers.parseEther("180"), ethers.parseEther("20")]);
+
+      const product = await marketplace.getProduct(0);
+      expect(product.price).to.equal(newPrice);
+      expect(product.amounts[0]).to.equal(ethers.parseEther("180"));
+      expect(product.amounts[1]).to.equal(ethers.parseEther("20"));
+    });
+
+    it("should reject if called by non-owner", async function () {
+      const { marketplace, recipient1, nonOwner } = await loadFixture(deployFixture);
+
+      const price = ethers.parseEther("1000");
+      await marketplace.registerProduct(price, [recipient1.address], [price]);
+
+      await expect(
+        marketplace.connect(nonOwner).updateProduct(0, ethers.parseEther("500"), [ethers.parseEther("500")])
+      ).to.be.revertedWithCustomError(marketplace, "OwnableUnauthorizedAccount");
+    });
+
+    it("should reject if product is not active", async function () {
+      const { marketplace } = await loadFixture(deployFixture);
+
+      await expect(
+        marketplace.updateProduct(99, ethers.parseEther("500"), [ethers.parseEther("500")])
+      ).to.be.revertedWith("Product not active");
+    });
+
+    it("should reject if new price is zero", async function () {
+      const { marketplace, recipient1 } = await loadFixture(deployFixture);
+
+      const price = ethers.parseEther("1000");
+      await marketplace.registerProduct(price, [recipient1.address], [price]);
+
+      await expect(
+        marketplace.updateProduct(0, 0, [0])
+      ).to.be.revertedWith("Price must be > 0");
+    });
+
+    it("should reject if amounts length mismatch", async function () {
+      const { marketplace, recipient1, recipient2 } = await loadFixture(deployFixture);
 
       const price = ethers.parseEther("1000");
       await marketplace.registerProduct(
         price,
         [recipient1.address, recipient2.address],
-        [8000, 2000]
+        [ethers.parseEther("800"), ethers.parseEther("200")]
       );
 
-      // Approve marketplace to spend buyer's JPYC
+      // 2 splits but only 1 amount
+      await expect(
+        marketplace.updateProduct(0, ethers.parseEther("500"), [ethers.parseEther("500")])
+      ).to.be.revertedWith("Length mismatch");
+    });
+
+    it("should reject if amounts do not sum to new price", async function () {
+      const { marketplace, recipient1 } = await loadFixture(deployFixture);
+
+      const price = ethers.parseEther("1000");
+      await marketplace.registerProduct(price, [recipient1.address], [price]);
+
+      await expect(
+        marketplace.updateProduct(0, ethers.parseEther("500"), [ethers.parseEther("400")])
+      ).to.be.revertedWith("Amounts must sum to price");
+    });
+
+    it("should allow buying at the new price after update", async function () {
+      const { marketplace, jpyc, recipient1, buyer } = await loadFixture(deployFixture);
+
+      const oldPrice = ethers.parseEther("1000");
+      const newPrice = ethers.parseEther("500");
+      await marketplace.registerProduct(oldPrice, [recipient1.address], [oldPrice]);
+
+      await marketplace.updateProduct(0, newPrice, [newPrice]);
+
+      await jpyc.connect(buyer).approve(await marketplace.getAddress(), newPrice);
+
+      const r1Before = await jpyc.balanceOf(recipient1.address);
+      await marketplace.connect(buyer).buy(0);
+
+      expect(await jpyc.balanceOf(recipient1.address)).to.equal(r1Before + newPrice);
+    });
+  });
+
+  describe("buy", function () {
+    it("should distribute JPYC to recipients exactly", async function () {
+      const { marketplace, jpyc, recipient1, recipient2, buyer } =
+        await loadFixture(deployFixture);
+
+      const price = ethers.parseEther("140");
+      const amount1 = ethers.parseEther("130");
+      const amount2 = ethers.parseEther("10");
+      await marketplace.registerProduct(
+        price,
+        [recipient1.address, recipient2.address],
+        [amount1, amount2]
+      );
+
       await jpyc
         .connect(buyer)
         .approve(await marketplace.getAddress(), price);
 
       const r1BalBefore = await jpyc.balanceOf(recipient1.address);
       const r2BalBefore = await jpyc.balanceOf(recipient2.address);
-      const buyerBalBefore = await jpyc.balanceOf(buyer.address);
 
       const tx = await marketplace.connect(buyer).buy(0);
 
@@ -155,31 +267,23 @@ describe("JpycSplitMarketplace", function () {
 
       await expect(tx)
         .to.emit(marketplace, "RevenueDistributed")
-        .withArgs(0, recipient1.address, ethers.parseEther("800"));
+        .withArgs(0, recipient1.address, amount1);
 
       await expect(tx)
         .to.emit(marketplace, "RevenueDistributed")
-        .withArgs(0, recipient2.address, ethers.parseEther("200"));
+        .withArgs(0, recipient2.address, amount2);
 
-      // Verify balances
-      expect(await jpyc.balanceOf(recipient1.address)).to.equal(
-        r1BalBefore + ethers.parseEther("800")
-      );
-      expect(await jpyc.balanceOf(recipient2.address)).to.equal(
-        r2BalBefore + ethers.parseEther("200")
-      );
-      expect(await jpyc.balanceOf(buyer.address)).to.equal(
-        buyerBalBefore - price
-      );
+      // Verify exact amounts
+      expect(await jpyc.balanceOf(recipient1.address)).to.equal(r1BalBefore + amount1);
+      expect(await jpyc.balanceOf(recipient2.address)).to.equal(r2BalBefore + amount2);
 
-      // Contract should have 0 balance (all distributed)
+      // Contract should have 0 balance
       expect(await jpyc.balanceOf(await marketplace.getAddress())).to.equal(0);
     });
 
     it("should fail if product is not active", async function () {
       const { marketplace, buyer } = await loadFixture(deployFixture);
 
-      // Product 99 was never registered
       await expect(
         marketplace.connect(buyer).buy(99)
       ).to.be.revertedWith("Product not active");
@@ -190,13 +294,8 @@ describe("JpycSplitMarketplace", function () {
         await loadFixture(deployFixture);
 
       const price = ethers.parseEther("1000");
-      await marketplace.registerProduct(
-        price,
-        [recipient1.address],
-        [10000]
-      );
+      await marketplace.registerProduct(price, [recipient1.address], [price]);
 
-      // nonOwner has 0 JPYC but approves
       await jpyc
         .connect(nonOwner)
         .approve(await marketplace.getAddress(), price);
@@ -211,13 +310,8 @@ describe("JpycSplitMarketplace", function () {
         await loadFixture(deployFixture);
 
       const price = ethers.parseEther("1000");
-      await marketplace.registerProduct(
-        price,
-        [recipient1.address],
-        [10000]
-      );
+      await marketplace.registerProduct(price, [recipient1.address], [price]);
 
-      // Approve less than price
       await jpyc
         .connect(buyer)
         .approve(await marketplace.getAddress(), ethers.parseEther("500"));
@@ -227,16 +321,12 @@ describe("JpycSplitMarketplace", function () {
       ).to.be.reverted;
     });
 
-    it("should handle single recipient (100%) correctly", async function () {
+    it("should handle single recipient correctly", async function () {
       const { marketplace, jpyc, recipient1, buyer } =
         await loadFixture(deployFixture);
 
       const price = ethers.parseEther("500");
-      await marketplace.registerProduct(
-        price,
-        [recipient1.address],
-        [10000]
-      );
+      await marketplace.registerProduct(price, [recipient1.address], [price]);
 
       await jpyc
         .connect(buyer)
@@ -269,11 +359,9 @@ describe("JpycSplitMarketplace", function () {
     it("should preserve state after upgrade", async function () {
       const { marketplace, jpyc, owner, recipient1 } = await loadFixture(deployFixture);
 
-      // Register a product before upgrade
       const price = ethers.parseEther("1000");
-      await marketplace.registerProduct(price, [recipient1.address], [10000]);
+      await marketplace.registerProduct(price, [recipient1.address], [price]);
 
-      // Upgrade to V2
       const V2 = await ethers.getContractFactory("JpycSplitMarketplaceV2", owner);
       const upgraded = await upgrades.upgradeProxy(
         await marketplace.getAddress(),
@@ -281,7 +369,6 @@ describe("JpycSplitMarketplace", function () {
         { kind: "uups" }
       );
 
-      // Verify state is preserved
       expect(await upgraded.nextProductId()).to.equal(1);
       const product = await upgraded.getProduct(0);
       expect(product.price).to.equal(price);
@@ -301,182 +388,6 @@ describe("JpycSplitMarketplace", function () {
       );
 
       expect(await upgraded.version()).to.equal("2.0.0");
-    });
-  });
-
-  describe("V2 Decimal Price", function () {
-    // V2の価格スケール:
-    //   stored price = 実際のJPYC額(wei) × 100
-    //   buy() 時に /100 して実際の転送額を算出
-    //   例: 1000 JPYC → stored = parseEther("1000") * 100 = parseEther("100000")
-    //       10.50 JPYC → stored = parseEther("10.5") * 100 = parseEther("1050")
-
-    async function deployAndUpgradeFixture() {
-      const [owner, recipient1, recipient2, buyer, nonOwner] =
-        await ethers.getSigners();
-
-      const MockERC20 = await ethers.getContractFactory("MockERC20");
-      const jpyc = await MockERC20.deploy("JPY Coin", "JPYC", 18);
-      await jpyc.waitForDeployment();
-
-      // V1でデプロイし、商品を登録
-      const V1 = await ethers.getContractFactory("JpycSplitMarketplace");
-      const proxy = await upgrades.deployProxy(
-        V1,
-        [await jpyc.getAddress()],
-        { kind: "uups" }
-      );
-      await proxy.waitForDeployment();
-
-      // V1商品: 1000 JPYC (80% recipient1, 20% recipient2)
-      const v1Price = ethers.parseEther("1000");
-      await proxy.registerProduct(
-        v1Price,
-        [recipient1.address, recipient2.address],
-        [8000, 2000]
-      );
-
-      // V2にアップグレード
-      const V2 = await ethers.getContractFactory("JpycSplitMarketplaceV2", owner);
-      const upgraded = await upgrades.upgradeProxy(
-        await proxy.getAddress(),
-        V2,
-        { kind: "uups" }
-      );
-
-      // buyerにJPYCをミント
-      await jpyc.mint(buyer.address, ethers.parseEther("100000"));
-
-      return { upgraded, jpyc, owner, recipient1, recipient2, buyer, nonOwner, v1Price };
-    }
-
-    it("should migrate old product price (×100)", async function () {
-      const { upgraded, v1Price } = await loadFixture(deployAndUpgradeFixture);
-
-      // 移行前: V1の価格がそのまま保存されている
-      const before = await upgraded.getProduct(0);
-      expect(before.price).to.equal(v1Price);
-
-      // 移行実行
-      await upgraded.migrateProductPrice(0);
-
-      // 移行後: 価格が100倍になっている
-      const after = await upgraded.getProduct(0);
-      expect(after.price).to.equal(v1Price * 100n);
-
-      // getActualPrice() で元の額を取得できる
-      expect(await upgraded.getActualPrice(0)).to.equal(v1Price);
-    });
-
-    it("should reject double migration", async function () {
-      const { upgraded } = await loadFixture(deployAndUpgradeFixture);
-
-      await upgraded.migrateProductPrice(0);
-      await expect(
-        upgraded.migrateProductPrice(0)
-      ).to.be.revertedWith("Already migrated");
-    });
-
-    it("should buy migrated product with correct JPYC transfer", async function () {
-      const { upgraded, jpyc, recipient1, recipient2, buyer, v1Price } =
-        await loadFixture(deployAndUpgradeFixture);
-
-      // 旧商品を移行
-      await upgraded.migrateProductPrice(0);
-
-      // buyer が approve（実際の転送額 = v1Price = 1000 JPYC）
-      await jpyc.connect(buyer).approve(await upgraded.getAddress(), v1Price);
-
-      const r1Before = await jpyc.balanceOf(recipient1.address);
-      const r2Before = await jpyc.balanceOf(recipient2.address);
-      const buyerBefore = await jpyc.balanceOf(buyer.address);
-
-      // V2のbuy() → stored price / 100 = 1000 JPYC を転送
-      await upgraded.connect(buyer).buy(0);
-
-      // 1000 JPYC の 80% = 800, 20% = 200
-      expect(await jpyc.balanceOf(recipient1.address)).to.equal(
-        r1Before + ethers.parseEther("800")
-      );
-      expect(await jpyc.balanceOf(recipient2.address)).to.equal(
-        r2Before + ethers.parseEther("200")
-      );
-      expect(await jpyc.balanceOf(buyer.address)).to.equal(
-        buyerBefore - v1Price
-      );
-    });
-
-    it("should register and buy new product with decimal price (10.50 JPYC)", async function () {
-      const { upgraded, jpyc, recipient1, buyer } =
-        await loadFixture(deployAndUpgradeFixture);
-
-      // V2で新商品登録: 10.50 JPYC = parseEther("10.5") * 100
-      const decimalPrice = ethers.parseEther("10.5");
-      const scaledPrice = decimalPrice * 100n; // = parseEther("1050")
-      await upgraded.registerProduct(
-        scaledPrice,
-        [recipient1.address],
-        [10000]
-      );
-
-      // getActualPrice で 10.50 JPYC を確認
-      expect(await upgraded.getActualPrice(1)).to.equal(decimalPrice);
-
-      // 購入（実際の転送額 = 10.50 JPYC）
-      await jpyc.connect(buyer).approve(await upgraded.getAddress(), decimalPrice);
-
-      const r1Before = await jpyc.balanceOf(recipient1.address);
-      const buyerBefore = await jpyc.balanceOf(buyer.address);
-
-      await upgraded.connect(buyer).buy(1);
-
-      // recipient1 に 10.50 JPYC が転送される
-      expect(await jpyc.balanceOf(recipient1.address)).to.equal(
-        r1Before + decimalPrice
-      );
-      expect(await jpyc.balanceOf(buyer.address)).to.equal(
-        buyerBefore - decimalPrice
-      );
-    });
-
-    it("should handle both migrated and new products consistently", async function () {
-      const { upgraded, jpyc, recipient1, recipient2, buyer, v1Price } =
-        await loadFixture(deployAndUpgradeFixture);
-
-      // 旧商品(#0)を移行
-      await upgraded.migrateProductPrice(0);
-
-      // 新商品(#1)を登録: 500.75 JPYC
-      const newDecimalPrice = ethers.parseEther("500.75");
-      const newScaledPrice = newDecimalPrice * 100n;
-      await upgraded.registerProduct(
-        newScaledPrice,
-        [recipient1.address, recipient2.address],
-        [6000, 4000] // 60% / 40%
-      );
-
-      // 両方の getActualPrice を確認
-      expect(await upgraded.getActualPrice(0)).to.equal(v1Price);              // 1000 JPYC
-      expect(await upgraded.getActualPrice(1)).to.equal(newDecimalPrice);      // 500.75 JPYC
-
-      // 旧商品を購入
-      const totalApproval = v1Price + newDecimalPrice;
-      await jpyc.connect(buyer).approve(await upgraded.getAddress(), totalApproval);
-
-      const buyerBefore = await jpyc.balanceOf(buyer.address);
-
-      await upgraded.connect(buyer).buy(0); // 1000 JPYC
-
-      // 新商品を購入
-      await upgraded.connect(buyer).buy(1); // 500.75 JPYC
-
-      // buyer の残高が正しく減っている
-      expect(await jpyc.balanceOf(buyer.address)).to.equal(
-        buyerBefore - v1Price - newDecimalPrice
-      );
-
-      // コントラクトに残高が残っていない（全額分配済み）
-      expect(await jpyc.balanceOf(await upgraded.getAddress())).to.equal(0);
     });
   });
 });

@@ -30,9 +30,6 @@ export default function RootLayout({
                 StableCoinEC
               </Link>
               <nav className="flex gap-6 items-center">
-                <Link href="/" className="text-sm font-medium text-white/80 hover:text-white transition-colors">
-                  商品一覧
-                </Link>
                 <AuthMenu />
               </nav>
             </div>
